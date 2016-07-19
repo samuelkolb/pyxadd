@@ -26,9 +26,7 @@ class TestMatrixVector(unittest.TestCase):
         return Diagram(pool, root)
 
     def test_mixed_symbolic(self):
-        export(self.diagram, "mixed.dot")
         diagram_y = Diagram(self.diagram.pool, SummationWalker(self.diagram, "x").walk())
-        export(diagram_y, "only_y.dot")
 
         result = 0
         for y in range(0, 10):
@@ -43,7 +41,6 @@ class TestMatrixVector(unittest.TestCase):
 
     def test_partial(self):
         partial = PartialWalker(self.diagram, [("y", 2)]).walk()
-        export(partial, "partial.dot")
         for x in range(-10, 10):
             if x < 0 or x > 8:
                 self.assertEqual(0, partial.evaluate([("x", x)]))
