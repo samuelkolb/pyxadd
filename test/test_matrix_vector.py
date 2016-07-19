@@ -33,20 +33,24 @@ class TestMatrixVector(unittest.TestCase):
         result = 0
         for y in range(0, 10):
             result += diagram_y.evaluate({"y": y})
+
         explicit_result = 0
         for x in range(0, 10):
             for y in range(0, 10):
                 explicit_result += self.diagram.evaluate({"x": x, "y": y})
+
         self.assertEqual(explicit_result, result)
 
     def test_partial(self):
         partial = PartialWalker(self.diagram, [("y", 2)]).walk()
+        export(partial, "partial.dot")
         for x in range(-10, 10):
             if x < 0 or x > 8:
                 self.assertEqual(0, partial.evaluate([("x", x)]))
-            else:
+            elif x > 2:
                 self.assertEqual(2 * x + 6, partial.evaluate([("x", x)]))
-
+            else:
+                self.assertEqual(3 * x + 4, partial.evaluate([("x", x)]))
 
 if __name__ == '__main__':
     unittest.main()
