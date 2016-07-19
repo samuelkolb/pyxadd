@@ -2,7 +2,14 @@ import re
 
 import sympy
 
+from xadd.operation import Summation, Multiplication
 from xadd.test import Operators, Test
+
+
+def check_node_id(node_id, name="Node id"):
+    if not isinstance(node_id, int):
+        raise RuntimeError("{} must be integer, was {} of type {}".format(name, node_id, type(node_id)))
+    return node_id
 
 
 class Node:
@@ -26,14 +33,16 @@ class TerminalNode(Node):
         return self._expression
 
     def __repr__(self):
-        return "T\t" + str(self.node_id)
+        return "T(id: {}, expression: {})".format(self.node_id, self.expression)
 
 
 class InternalNode(Node):
     def __init__(self, node_id, test, child_true, child_false):
         super().__init__(node_id)
         self._test = test
+        check_node_id(child_true, "Child (true)")
         self._child_true = child_true
+        check_node_id(child_false, "Child (false)")
         self._child_false = child_false
 
     @property
@@ -49,13 +58,15 @@ class InternalNode(Node):
         return self._child_false
 
     def __repr__(self):
-        return "I\t" + str(self.node_id)
+        return "I(id: {}, test: {}, true: {}, false: {})"\
+            .format(self.node_id, self.test, self.child_true, self.child_false)
 
 
 class Pool:
     def __init__(self, empty=False):
         self._counter = 1
         self._nodes = dict()
+        self._internal_map = dict()
         self._expressions = dict()
         self._tests = dict()
         if not empty:
@@ -64,13 +75,24 @@ class Pool:
             self.pos_inf_id = self.terminal("+inf")
             self.neg_inf_id = self.terminal("-inf")
 
+    def _get_test_id(self, test):
+        return self._tests.get(test, None)
+
+    def _add_test(self, test):
+        if test not in self._tests:
+            self._tests[test] = len(self._tests)
+        return self._tests[test]
+
     def get_node(self, node_id):
+        check_node_id(node_id)
         if node_id in self._nodes:
             return self._nodes.get(node_id)
         else:
             raise RuntimeError("No node in pool with id {}.".format(node_id))
 
     def terminal(self, expression):
+        if not isinstance(expression, sympy.Basic):
+            expression = sympy.sympify(expression)
         if expression in self._expressions:
             return self._expressions[expression]
         node_id = self._register(lambda n_id: TerminalNode(n_id, expression))
@@ -78,12 +100,20 @@ class Pool:
         return node_id
 
     def internal(self, test, child_true, child_false):
-        t = (test, child_true, child_false)
-        if t in self._tests:
-            return self._tests[t]
-        node_id = self._register(lambda n_id: InternalNode(n_id, test, child_true, child_false))
-        self._tests[t] = node_id
+        check_node_id(child_true, "Child (true)")
+        check_node_id(child_false, "Child (false)")
+        if child_true == child_false:
+            return child_true
+        test_id = self._add_test(test)
+        key = (test_id, child_true, child_false)
+        node_id = self._internal_map.get(key, None)
+        if node_id is None:
+            node_id = self._register(lambda n_id: InternalNode(n_id, test, child_true, child_false))
+            self._internal_map[key] = node_id
         return node_id
+
+    def bool_test(self, test):
+        return self.internal(test, self.one_id, self.zero_id)
 
     def _register(self, constructor):
         node_id = self._counter
@@ -91,18 +121,46 @@ class Pool:
         self._nodes[node_id] = constructor(node_id)
         return node_id
 
-
     def apply(self, operation, root1, root2):
-        # TODO check cache
+        # TODO check apply cache
+        node1 = self.get_node(root1)
+        node2 = self.get_node(root2)
 
-        # TODO compute terminal
-        # TODO deal with NaN?
+        result = operation.compute_terminal(self, node1, node2)
 
+        if result is None:
+            # Find minimal node (or only internal node)
+            if isinstance(node1, InternalNode):
+                if isinstance(node2, InternalNode):
+                    if self._get_test_id(node1.test) <= self._get_test_id(node2.test):
+                        selected_test = node1.test
+                    else:
+                        selected_test = node2.test
+                else:
+                    selected_test = node1.test
+            else:
+                selected_test = node2.test
 
-        # TODO compute recursive
+            if isinstance(node1, InternalNode) and node1.test == selected_test:
+                children1 = (node1.child_true, node1.child_false)
+            else:
+                children1 = (node1.node_id, node1.node_id)
 
+            if isinstance(node2, InternalNode) and node2.test == selected_test:
+                children2 = (node2.child_true, node2.child_false)
+            else:
+                children2 = (node2.node_id, node2.node_id)
+
+            child_true = self.apply(operation, children1[0], children2[0])
+            child_false = self.apply(operation, children1[1], children2[1])
+
+            result = self.internal(selected_test, child_true, child_false)
         # TODO update cache
-        pass
+        return result
+
+    def invert(self, node_id):
+        minus_one = self.terminal("-1")
+        return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
 
 
 class Diagram:
@@ -146,6 +204,20 @@ class Diagram:
                 return self._evaluate(assignment, node.child_false)
         else:
             raise RuntimeError("Unexpected node type: {}".format(type(node)))
+
+    def __add__(self, other):
+        if not isinstance(other, Diagram):
+            raise TypeError("Cannot sum Diagram with {}".format(type(other)))
+        if self.pool != other.pool:
+            raise RuntimeError("Can only add diagrams from the same pool")
+        return Diagram(self.pool, self.pool.apply(Summation, self.root_node.node_id, other.root_node.node_id))
+
+    def __mul__(self, other):
+        if not isinstance(other, Diagram):
+            raise TypeError("Cannot multiply Diagram with {}".format(type(other)))
+        if self.pool != other.pool:
+            raise RuntimeError("Can only multiply diagrams from the same pool")
+        return Diagram(self.pool, self.pool.apply(Multiplication, self.root_node.node_id, other.root_node.node_id))
 
     # T	1	0	null
     # T	2	1	null

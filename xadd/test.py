@@ -12,6 +12,13 @@ class Operator:
             return Operators.get(">")
         return self
 
+    def weak_int(self, lhs):
+        if self._op == "<":
+            return lhs + 1, Operators.get("<=")
+        if self._op == ">":
+            return lhs - 1, Operators.get(">=")
+        return lhs, self
+
     def weak(self):
         if self._op == "<":
             return Operators.get("<=")
@@ -69,6 +76,10 @@ class Operator:
     def __hash__(self):
         return hash(self._op)
 
+    def __eq__(self, other):
+        # noinspection PyProtectedMember
+        return isinstance(other, Operator) and self._op == other._op
+
 
 class Operators:
     _objects = {s: Operator(s) for s in ["<=", "<", ">=", ">", "="]}
@@ -80,9 +91,11 @@ class Operators:
 
 class Test:
     def __init__(self, expression, operator):
-        if type(expression) == str:
+        if not isinstance(expression, sympy.Basic):
             expression = sympy.sympify(expression)
         self._expression = expression
+        if isinstance(operator, str):
+            operator = Operators.get(operator)
         self._operator = operator
 
     @property
@@ -115,3 +128,6 @@ class Test:
 
     def __hash__(self):
         return hash((self.expression, self.operator))
+
+    def __eq__(self, other):
+        return isinstance(other, Test) and self.expression == other.expression and self.operator == other.operator

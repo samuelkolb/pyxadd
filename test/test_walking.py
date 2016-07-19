@@ -1,6 +1,6 @@
 import unittest
 
-from xadd.diagram import Diagram, TerminalNode, InternalNode, Pool
+from xadd.diagram import Diagram, InternalNode, Pool
 from xadd.test import Test, Operators
 from xadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingProfile, BottomUpWalker
 
