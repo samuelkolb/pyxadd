@@ -205,6 +205,9 @@ class Diagram:
         else:
             raise RuntimeError("Unexpected node type: {}".format(type(node)))
 
+    def __invert__(self):
+        return Diagram(self.pool, self.pool.invert(self.root_node.node_id))
+
     def __add__(self, other):
         if not isinstance(other, Diagram):
             raise TypeError("Cannot sum Diagram with {}".format(type(other)))
