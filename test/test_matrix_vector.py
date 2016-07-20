@@ -1,11 +1,10 @@
 import unittest
 
 from xadd.diagram import Diagram, Pool
-from xadd.matrix_vector import SummationWalker
+from xadd.matrix_vector import SummationWalker, matrix_multiply
 from xadd.partial import PartialWalker
 from xadd.test import Test, Operators
-from xadd.view import to_dot, export
-from xadd.walk import WalkingProfile
+from xadd.view import export
 
 
 class TestMatrixVector(unittest.TestCase):
@@ -48,6 +47,36 @@ class TestMatrixVector(unittest.TestCase):
                 self.assertEqual(2 * x + 6, partial.evaluate([("x", x)]))
             else:
                 self.assertEqual(3 * x + 4, partial.evaluate([("x", x)]))
+
+    def test_multiplication(self):
+        pool = Pool()
+        x_two = Diagram(pool, pool.terminal("x2"))
+        two = Diagram(pool, pool.terminal("2"))
+        three = Diagram(pool, pool.terminal("3"))
+        four = Diagram(pool, pool.terminal("4"))
+
+        test11 = Diagram(pool, pool.bool_test(Test("x1", ">=")))
+        test12 = Diagram(pool, pool.bool_test(Test("x1 - 1", "<=")))
+        test13 = Diagram(pool, pool.bool_test(Test("x1 - 3", ">")))
+
+        test21 = Diagram(pool, pool.bool_test(Test("x2", ">=")))
+        test22 = Diagram(pool, pool.bool_test(Test("x2", ">")))
+        test23 = Diagram(pool, pool.bool_test(Test("x2 - 1", ">")))
+        test24 = Diagram(pool, pool.bool_test(Test("x2 - 2", ">")))
+
+        x_twos = test12 * ~test23 * x_two
+        twos = test12 * test23 * two
+        threes = ~test12 * ~test22 * three
+        fours = ~test12 * test22 * four
+
+        unlimited = x_twos + twos + threes + fours
+        restricted = unlimited * test11 * ~test13 * test21 * ~test24
+
+        vector = test21 * ~test24 * Diagram(pool, pool.terminal("x2 + 1"))
+
+        result = Diagram(pool, matrix_multiply(pool, restricted.root_node.node_id, vector.root_node.node_id, ["x2"]))
+        for x1 in range(0, 4):
+            self.assertEqual(8 if x1 < 2 else 23, result.evaluate({"x1": x1}))
 
 if __name__ == '__main__':
     unittest.main()

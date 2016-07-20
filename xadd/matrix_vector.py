@@ -1,5 +1,6 @@
 import sympy
 
+from xadd.diagram import Diagram
 from xadd.operation import Summation, Multiplication
 from xadd.test import Operators, Test
 from xadd.walk import DownUpWalker
@@ -99,3 +100,10 @@ class SummationWalker(DownUpWalker):
         return pool.apply(Summation,
                           pool.apply(Multiplication, test_node, child_true),
                           pool.apply(Multiplication, pool.invert(test_node), child_false))
+
+
+def matrix_multiply(pool, root1, root2, variables):
+    result = Diagram(pool, pool.apply(Multiplication, root1, root2))
+    for var in variables:
+        result = SummationWalker(result, var).walk()
+    return result
