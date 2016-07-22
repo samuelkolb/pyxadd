@@ -14,6 +14,7 @@ class TestMatrixVector(unittest.TestCase):
     @staticmethod
     def construct_diagram():
         pool = Pool()
+        pool.int_var("x", "y")
         zero = pool.terminal("0")
         f1 = pool.terminal("2*x + 3*y")
         f2 = pool.terminal("3*x + 2*y")
@@ -50,6 +51,7 @@ class TestMatrixVector(unittest.TestCase):
 
     def test_multiplication(self):
         pool = Pool()
+        pool.int_var("x1", "x2")
         x_two = Diagram(pool, pool.terminal("x2"))
         two = Diagram(pool, pool.terminal("2"))
         three = Diagram(pool, pool.terminal("3"))

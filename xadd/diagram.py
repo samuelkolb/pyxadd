@@ -69,11 +69,12 @@ class Pool:
         self._internal_map = dict()
         self._expressions = dict()
         self._tests = dict()
+        self.vars = dict()
         if not empty:
             self.zero_id = self.terminal("0")
             self.one_id = self.terminal("1")
-            self.pos_inf_id = self.terminal("+inf")
-            self.neg_inf_id = self.terminal("-inf")
+            self.pos_inf_id = self.terminal(sympy.oo)
+            self.neg_inf_id = self.terminal(-sympy.oo)
 
     def _get_test_id(self, test):
         return self._tests.get(test, None)
@@ -90,11 +91,18 @@ class Pool:
         else:
             raise RuntimeError("No node in pool with id {}.".format(node_id))
 
+    def int_var(self, *args):
+        for name in args:
+            self.vars[sympy.sympify(name)] = "int"
+
     def terminal(self, expression):
         if not isinstance(expression, sympy.Basic):
             expression = sympy.sympify(expression)
         if expression in self._expressions:
             return self._expressions[expression]
+        for var in expression.free_symbols:
+            if var not in self.vars:
+                raise RuntimeError("Variable {} not declared".format(var))
         node_id = self._register(lambda n_id: TerminalNode(n_id, expression))
         self._expressions[expression] = node_id
         return node_id
@@ -107,6 +115,9 @@ class Pool:
         test_id = self._add_test(test)
         key = (test_id, child_true, child_false)
         node_id = self._internal_map.get(key, None)
+        for var in test.expression.free_symbols:
+            if var not in self.vars:
+                raise RuntimeError("Variable {} not declared".format(var))
         if node_id is None:
             node_id = self._register(lambda n_id: InternalNode(n_id, test, child_true, child_false))
             self._internal_map[key] = node_id

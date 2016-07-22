@@ -51,6 +51,7 @@ class TestWalking(unittest.TestCase):
     @staticmethod
     def construct_diagram():
         pool = Pool(empty=True)
+        pool.int_var("x")
         x = pool.terminal("x")
         zero = pool.terminal("0")
         test1 = pool.internal(Test("x - 5", Operators.get("<=")), x, zero)

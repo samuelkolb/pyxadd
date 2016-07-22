@@ -10,6 +10,7 @@ from xadd.walk import WalkingProfile, ParentsWalker
 class TestDiagram(unittest.TestCase):
     def setUp(self):
         pool = Pool()
+        pool.int_var("x")
         self.test1 = pool.bool_test(Test("x", ">="))
         self.test2 = pool.bool_test(Test("x + 2", "="))
         self.test3 = pool.bool_test(Test("x + 1", "<="))
@@ -33,6 +34,7 @@ class TestDiagram(unittest.TestCase):
 
     def test_multiplication(self):
         pool = Pool()
+        pool.int_var("x")
         two = pool.terminal("2")
         x = pool.terminal("x")
 
@@ -51,6 +53,7 @@ class TestDiagram(unittest.TestCase):
 
     def test_not(self):
         pool = Pool()
+        pool.int_var("x")
         dd_true = Diagram(pool, pool.bool_test(Test("x", ">=")))
         dd_false = Diagram(pool, pool.invert(dd_true.root_node.node_id))
 
