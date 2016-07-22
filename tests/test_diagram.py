@@ -1,10 +1,10 @@
 import unittest
 
-from xadd.diagram import Diagram, Pool
-from xadd.operation import Multiplication, Summation
-from xadd.test import Test, Operators
-from xadd.view import export
-from xadd.walk import WalkingProfile, ParentsWalker
+from pyxadd.diagram import Diagram, Pool
+from pyxadd.operation import Multiplication, Summation
+from pyxadd.test import Test, Operators
+from pyxadd.view import export
+from pyxadd.walk import WalkingProfile, ParentsWalker
 
 
 class TestDiagram(unittest.TestCase):

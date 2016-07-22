@@ -1,4 +1,4 @@
-from xadd.diagram import InternalNode, TerminalNode
+from pyxadd.diagram import InternalNode, TerminalNode
 
 
 class Walker:

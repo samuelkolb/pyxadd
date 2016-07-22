@@ -1,6 +1,6 @@
-from xadd.test import Test
-from xadd.walk import BottomUpWalker
-from xadd.diagram import Diagram
+from pyxadd.test import Test
+from pyxadd.walk import BottomUpWalker
+from pyxadd.diagram import Diagram
 
 
 class PartialWalker(BottomUpWalker):

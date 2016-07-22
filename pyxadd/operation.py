@@ -11,7 +11,7 @@ class Multiplication(Operation):
     @classmethod
     def compute_terminal(cls, pool, node1, node2):
         # TODO deal with NaN?
-        from xadd.diagram import TerminalNode
+        from pyxadd.diagram import TerminalNode
         if node1.node_id == pool.zero_id or node2.node_id == pool.zero_id:
             return pool.zero_id
         elif node1.node_id == pool.one_id:
@@ -27,7 +27,7 @@ class Summation(Operation):
     @classmethod
     def compute_terminal(cls, pool, node1, node2):
         # TODO deal with NaN?
-        from xadd.diagram import TerminalNode
+        from pyxadd.diagram import TerminalNode
         if node1.node_id == pool.zero_id:
             return node2.node_id
         elif node2.node_id == pool.zero_id:

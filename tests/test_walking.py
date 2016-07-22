@@ -1,8 +1,8 @@
 import unittest
 
-from xadd.diagram import Diagram, InternalNode, Pool
-from xadd.test import Test, Operators
-from xadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingProfile, BottomUpWalker
+from pyxadd.diagram import Diagram, InternalNode, Pool
+from pyxadd.test import Test, Operators
+from pyxadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingProfile, BottomUpWalker
 
 
 class DummyDepthFirstWalker(DepthFirstWalker):

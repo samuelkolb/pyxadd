@@ -1,9 +1,9 @@
 import sympy
 
-from xadd.diagram import Diagram
-from xadd.operation import Summation, Multiplication
-from xadd.test import Operators, Test
-from xadd.walk import DownUpWalker
+from pyxadd.diagram import Diagram
+from pyxadd.operation import Summation, Multiplication
+from pyxadd.test import Operators, Test
+from pyxadd.walk import DownUpWalker
 
 
 class SummationWalker(DownUpWalker):

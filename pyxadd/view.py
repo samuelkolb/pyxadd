@@ -1,5 +1,5 @@
-from xadd.diagram import InternalNode, TerminalNode
-from xadd.walk import WalkingProfile, ParentsWalker
+from pyxadd.diagram import InternalNode, TerminalNode
+from pyxadd.walk import WalkingProfile, ParentsWalker
 
 
 def to_dot(diagram):

@@ -1,10 +1,10 @@
 import unittest
 
-from xadd.diagram import Diagram, Pool
-from xadd.matrix_vector import SummationWalker, matrix_multiply
-from xadd.partial import PartialWalker
-from xadd.test import Test, Operators
-from xadd.view import export
+from pyxadd.diagram import Diagram, Pool
+from pyxadd.matrix_vector import SummationWalker, matrix_multiply
+from pyxadd.partial import PartialWalker
+from pyxadd.test import Test, Operators
+from pyxadd.view import export
 
 
 class TestMatrixVector(unittest.TestCase):

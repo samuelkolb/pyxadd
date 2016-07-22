@@ -2,8 +2,8 @@ import re
 
 import sympy
 
-from xadd.operation import Summation, Multiplication
-from xadd.test import Operators, Test
+from pyxadd.operation import Summation, Multiplication
+from pyxadd.test import Operators, Test
 
 
 def check_node_id(node_id, name="Node id"):
@@ -193,7 +193,7 @@ class Diagram:
 
     @property
     def profile(self):
-        from xadd.walk import WalkingProfile
+        from pyxadd.walk import WalkingProfile
         if self._profile is None:
             self._profile = WalkingProfile(self)
         return self._profile
