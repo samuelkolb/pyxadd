@@ -23,7 +23,7 @@ class Node:
 
 class TerminalNode(Node):
     def __init__(self, node_id, expression):
-        super().__init__(node_id)
+        Node.__init__(self, node_id)
         if type(expression) == str:
             expression = sympy.sympify(expression)
         self._expression = expression
@@ -38,7 +38,7 @@ class TerminalNode(Node):
 
 class InternalNode(Node):
     def __init__(self, node_id, test, child_true, child_false):
-        super().__init__(node_id)
+        Node.__init__(self, node_id)
         self._test = test
         check_node_id(child_true, "Child (true)")
         self._child_true = child_true
