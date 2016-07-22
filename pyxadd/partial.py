@@ -5,7 +5,7 @@ from pyxadd.diagram import Diagram
 
 class PartialWalker(BottomUpWalker):
     def __init__(self, diagram, assignment):
-        super().__init__(diagram, diagram.profile)
+        BottomUpWalker.__init__(self, diagram, diagram.profile)
         self._assignment = assignment
 
     def visit_internal(self, internal_node, true_message, false_message):
@@ -26,4 +26,4 @@ class PartialWalker(BottomUpWalker):
         return expression.subs(self._assignment)
 
     def walk(self):
-        return Diagram(self._diagram.pool, super().walk())
+        return Diagram(self._diagram.pool, BottomUpWalker.walk(self))

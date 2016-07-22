@@ -95,12 +95,12 @@ class DownUpWalker(Walker):
 
 class ParentsWalker(DepthFirstWalker):
     def __init__(self, diagram):
-        super().__init__(diagram)
+        DepthFirstWalker.__init__(self, diagram)
         self._nodes = None
 
     def walk(self):
         self._nodes = {self._diagram.root_node.node_id: set()}
-        super().walk()
+        DepthFirstWalker.walk(self)
         nodes = self._nodes
         self._nodes = None
         return nodes
@@ -190,7 +190,7 @@ class WalkingProfile:
 
 class BottomUpWalker(Walker):
     def __init__(self, diagram, profile):
-        super().__init__(diagram)
+        Walker.__init__(self, diagram)
         self._profile = profile
 
     def visit_terminal(self, terminal_node):

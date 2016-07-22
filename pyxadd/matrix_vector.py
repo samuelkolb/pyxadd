@@ -8,7 +8,7 @@ from pyxadd.walk import DownUpWalker
 
 class SummationWalker(DownUpWalker):
     def __init__(self, diagram, variable):
-        super().__init__(diagram)
+        DownUpWalker.__init__(self, diagram)
         self.variable = sympy.sympify(variable)
         # The node cache keeps track of the updated bounds per test
         self.node_cache = dict()
