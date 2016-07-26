@@ -133,8 +133,8 @@ class Pool:
             self._internal_map[key] = node_id
         return node_id
 
-    def bool_test(self, test):
-        return self.internal(test, self.one_id, self.zero_id)
+    def bool_test(self, test, v_type=None):
+        return self.internal(test, self.one_id, self.zero_id, v_type=v_type)
 
     def _register(self, constructor):
         node_id = self._counter
