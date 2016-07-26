@@ -95,19 +95,26 @@ class Pool:
         for name in args:
             self.vars[sympy.sympify(name)] = "int"
 
-    def terminal(self, expression):
+    def add_var(self, name, v_type):
+        if v_type == "int":
+            self.int_var(name)
+
+    def terminal(self, expression, v_type=None):
         if not isinstance(expression, sympy.Basic):
             expression = sympy.sympify(expression)
         if expression in self._expressions:
             return self._expressions[expression]
         for var in expression.free_symbols:
             if var not in self.vars:
-                raise RuntimeError("Variable {} not declared".format(var))
+                if v_type is None:
+                    raise RuntimeError("Variable {} not declared".format(var))
+                else:
+                    self.add_var(var, v_type)
         node_id = self._register(lambda n_id: TerminalNode(n_id, expression))
         self._expressions[expression] = node_id
         return node_id
 
-    def internal(self, test, child_true, child_false):
+    def internal(self, test, child_true, child_false, v_type=None):
         check_node_id(child_true, "Child (true)")
         check_node_id(child_false, "Child (false)")
         if child_true == child_false:
@@ -117,7 +124,10 @@ class Pool:
         node_id = self._internal_map.get(key, None)
         for var in test.expression.free_symbols:
             if var not in self.vars:
-                raise RuntimeError("Variable {} not declared".format(var))
+                if v_type is None:
+                    raise RuntimeError("Variable {} not declared".format(var))
+                else:
+                    self.add_var(var, v_type)
         if node_id is None:
             node_id = self._register(lambda n_id: InternalNode(n_id, test, child_true, child_false))
             self._internal_map[key] = node_id
