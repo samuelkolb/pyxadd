@@ -7,7 +7,7 @@ from pyxadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingPr
 
 class DummyDepthFirstWalker(DepthFirstWalker):
     def __init__(self, diagram):
-        super().__init__(diagram)
+        DepthFirstWalker.__init__(self, diagram)
         self.numbers = []
 
     def visit_internal(self, internal_node, parent_message):
