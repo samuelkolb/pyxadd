@@ -99,6 +99,9 @@ class Pool:
         if v_type == "int":
             self.int_var(name)
 
+    def get_var_type(self, name):
+        return self.vars[sympy.sympify(name)]
+
     def terminal(self, expression, v_type=None):
         if not isinstance(expression, sympy.Basic):
             expression = sympy.sympify(expression)
