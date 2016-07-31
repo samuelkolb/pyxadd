@@ -2,7 +2,7 @@ import re
 
 import sympy
 
-from pyxadd.operation import Summation, Multiplication
+from pyxadd.operation import Summation, Multiplication, LogicalOr, LogicalAnd
 from pyxadd.test import Operators, Test
 
 
@@ -246,6 +246,19 @@ class Diagram:
             raise RuntimeError("Can only multiply diagrams from the same pool")
         return Diagram(self.pool, self.pool.apply(Multiplication, self.root_node.node_id, other.root_node.node_id))
 
+    def __or__(self, other):
+        if not isinstance(other, Diagram):
+            raise TypeError("Cannot perform or on Diagram with {}".format(type(other)))
+        if self.pool != other.pool:
+            raise RuntimeError("Can only operate on diagrams from the same pool")
+        return Diagram(self.pool, self.pool.apply(LogicalOr, self.root_node.node_id, other.root_node.node_id))
+
+    def __and__(self, other):
+        if not isinstance(other, Diagram):
+            raise TypeError("Cannot perform and on Diagram with {}".format(type(other)))
+        if self.pool != other.pool:
+            raise RuntimeError("Can only operate on diagrams from the same pool")
+        return Diagram(self.pool, self.pool.apply(LogicalAnd, self.root_node.node_id, other.root_node.node_id))
     # T	1	0	null
     # T	2	1	null
     # E	5	(1 * y) > 0
