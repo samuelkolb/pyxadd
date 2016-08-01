@@ -17,7 +17,7 @@ class DepthFirstWalker(Walker):
     def visit_terminal(self, terminal_node, parent_message):
         """
         Visit a terminal node.
-        :param terminal_node: The terminal node to visit
+        :param TerminalNode terminal_node: The terminal node to visit
         :param parent_message: The message received from the parent
         :return: The result message to be passed up
         """
@@ -26,7 +26,7 @@ class DepthFirstWalker(Walker):
     def visit_internal(self, internal_node, parent_message):
         """
         Visit an internal node.
-        :param internal_node: The internal node to visit
+        :param InternalNode internal_node: The internal node to visit
         :param parent_message: The message received from the parent (is None for root)
         :return: A tuple of messages to be passed to the true and false child node respectively
         """

@@ -8,4 +8,4 @@ setup(name='pyxadd',
       author_email='samuel.kolb@me.com',
       license='MIT',
       packages=['pyxadd', 'tests'],
-      zip_safe=False)
+      zip_safe=False, requires=['cvxopt'])

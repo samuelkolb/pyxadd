@@ -53,6 +53,9 @@ class SummationWalker(DownUpWalker):
         return result
 
     def visit_terminal(self, terminal_node, parent_message):
+        if parent_message is None:
+            return terminal_node.node_id
+
         pool = self._diagram.pool
         if terminal_node.expression == 0:
             return pool.zero_id
@@ -84,7 +87,7 @@ class SummationWalker(DownUpWalker):
             if ub_c == len(upper_bounds):
                 lb = lower_bounds[lb_i]
                 ub = upper_bounds[ub_i]
-                return pool.terminal(sympy.Sum(expression, (self.variable, lb, ub)).doit())
+                return pool.terminal(sympy.nsimplify(sympy.Sum(sympy.nsimplify(expression), (self.variable, lb, ub)).doit()))
             else:
                 # Add upper bound check
                 test = Test(upper_bounds[ub_i] - upper_bounds[ub_c], "<=")
@@ -95,6 +98,9 @@ class SummationWalker(DownUpWalker):
             test = Test(lower_bounds[lb_i] - lower_bounds[lb_c], ">=")
             child_true = self._build_terminal(expression, lb_i, lb_c + 1, lower_bounds, ub_i, ub_c, upper_bounds)
             child_false = self._build_terminal(expression, lb_c, lb_c + 1, lower_bounds, ub_i, ub_c, upper_bounds)
+
+        if len(test.expression.free_symbols) == 0:
+            return child_true if test.operator.test(test.expression, 0) else child_false
 
         test_node = pool.bool_test(test)
         return pool.apply(Summation,

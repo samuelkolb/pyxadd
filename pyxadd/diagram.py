@@ -85,6 +85,11 @@ class Pool:
         return self._tests[test]
 
     def get_node(self, node_id):
+        """
+        Returns the node object associated with the given node_id
+        :param int node_id: The node id
+        :return: Node The node object
+        """
         check_node_id(node_id)
         if node_id in self._nodes:
             return self._nodes.get(node_id)

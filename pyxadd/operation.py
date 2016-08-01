@@ -72,7 +72,7 @@ class LogicalAnd(Operation):
         if isinstance(node1, TerminalNode) and isinstance(node2, TerminalNode) \
                 and ((node1.node_id != pool.zero_id and node1.node_id != pool.one_id)
                      or (node2.node_id != pool.zero_id and node2.node_id != pool.one_id)):
-            raise RuntimeError("Nodes must be one or zero")
+            raise RuntimeError("Nodes must be one or zero, were {} and {}".format(node1, node2))
 
         if node1.node_id == pool.one_id:
             return node2.node_id
