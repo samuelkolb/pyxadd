@@ -19,7 +19,7 @@ class LinearReduction(object):
 
     def reduce(self, node_id, variables):
         self.variables = variables
-        return self._reduce(node_id, [[] * len(variables)], [])
+        return self._reduce(node_id, [], [])
 
     def _reduce(self, node_id, coefficients, constants):
         node = self.pool.get_node(node_id)
@@ -44,9 +44,17 @@ class LinearReduction(object):
             raise RuntimeError("Unexpected node {} of type {}".format(node, type(node)))
 
     def _combine(self, coefficients, constants, test, test_true):
+        print("Old", coefficients)
         new_coefficients, new_constant = self._test_to_linear_leq_constraint(test, test_true)
-        combined_coefficients = list(coefficients[i] + [new_coefficients[i]] for i in range(0, len(coefficients)))
+        combined_coefficients = []
+        for i in range(0, len(new_coefficients)):
+            if i >= len(coefficients):
+                combined_coefficients.append([new_coefficients[i]])
+            else:
+                combined_coefficients.append(coefficients[i] + [new_coefficients[i]])
         combined_constants = constants + [new_constant]
+        print("New", new_coefficients)
+        print("Combined", combined_coefficients)
         return combined_coefficients, combined_constants
 
     def _test_to_linear_leq_constraint(self, test, test_true):
@@ -63,13 +71,14 @@ class LinearReduction(object):
         f = sympy.lambdify(tuple(self.variables), -expression)
         constant = float(f(*([0] * len(self.variables))))
         coefficients = list(float(expression.coeff(var, 1)) for var in self.variables)
-        print(coefficients)
         return coefficients, constant
 
     def _is_feasible(self, coefficients, constants):
         # TODO substitute variable for value if it can be only one value
         import cvxopt
         print("Coefficients & constants", coefficients, constants)
+        if len(coefficients) > len(constants):
+            return True  # TODO Not 100% sure about this
         cvxopt.solvers.options["show_progress"] = False
         A = cvxopt.matrix(coefficients)
         b = cvxopt.matrix(constants)

@@ -27,10 +27,15 @@ class TerminalNode(Node):
         if type(expression) == str:
             expression = sympy.sympify(expression)
         self._expression = expression
+        self._symbols = tuple(expression.free_symbols)
+        self._f = sympy.lambdify(self._symbols, expression)
 
     @property
     def expression(self):
         return self._expression
+
+    def evaluate(self, assignment):
+        return self._f(*[assignment[str(v)] for v in self._symbols])
 
     def __repr__(self):
         return "T(id: {}, expression: {})".format(self.node_id, self.expression)
@@ -223,19 +228,16 @@ class Diagram:
         return self._pool.get_node(node_id)
 
     def evaluate(self, assignment):
-        return self._evaluate(assignment, self.root_node.node_id)
+        assignment = {str(k): v for k, v in assignment.items()}
+        node = self.root_node
 
-    def _evaluate(self, assignment, node_id):
-        node = self.node(node_id)
-        if isinstance(node, TerminalNode):
-            return node.expression.subs(assignment)
-        elif isinstance(node, InternalNode):
-            if node.test.operator.test(node.test.expression.subs(assignment), 0):
-                return self._evaluate(assignment, node.child_true)
+        while isinstance(node, InternalNode):
+            if node.test.evaluate(assignment):  # node.test.operator.test(node.test.expression.subs(assignment), 0):
+                node = self.node(node.child_true)
             else:
-                return self._evaluate(assignment, node.child_false)
-        else:
-            raise RuntimeError("Unexpected node type: {}".format(type(node)))
+                node = self.node(node.child_false)
+
+        return node.evaluate(assignment)
 
     def __invert__(self):
         return Diagram(self.pool, self.pool.invert(self.root_node.node_id))

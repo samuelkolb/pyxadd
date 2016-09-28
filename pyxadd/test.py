@@ -97,6 +97,10 @@ class Test:
         if isinstance(operator, str):
             operator = Operators.get(operator)
         self._operator = operator
+        self._symbols = tuple(self.expression.free_symbols)
+        self._f = sympy.lambdify(self._symbols, self.expression)
+
+
 
     @property
     def expression(self):
@@ -122,6 +126,9 @@ class Test:
         else:
             raise RuntimeError("Variable {} not in expression {} {} 0".format(var, self.expression, self.operator))
         return (expression, operator) if test else (expression, operator.flip_int())
+
+    def evaluate(self, assignment):
+        return self.operator.test(self._f(*[assignment[str(v)] for v in self._symbols]), 0)
 
     def __repr__(self):
         return " ".join([str(self.expression), str(self.operator), "0"])
