@@ -62,7 +62,9 @@ class LinearReduction(object):
             raise RuntimeError("Unexpected operator: {}".format(operator))
         f = sympy.lambdify(tuple(self.variables), -expression)
         constant = float(f(*([0] * len(self.variables))))
-        return list(float(expression.coeff(var, 1)) for var in self.variables), constant
+        coefficients = list(float(expression.coeff(var, 1)) for var in self.variables)
+        print(coefficients)
+        return coefficients, constant
 
     def _is_feasible(self, coefficients, constants):
         # TODO substitute variable for value if it can be only one value
