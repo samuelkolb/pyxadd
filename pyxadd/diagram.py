@@ -203,6 +203,9 @@ class Diagram:
 
     @property
     def root_node(self):
+        """
+        :rtype: Node
+        """
         return self._root_node
 
     @property

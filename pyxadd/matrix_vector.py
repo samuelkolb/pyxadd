@@ -87,7 +87,10 @@ class SummationWalker(DownUpWalker):
             if ub_c == len(upper_bounds):
                 lb = lower_bounds[lb_i]
                 ub = upper_bounds[ub_i]
-                return pool.terminal(sympy.nsimplify(sympy.Sum(sympy.nsimplify(expression), (self.variable, lb, ub)).doit()))
+
+                result = sympy.nsimplify(sympy.Sum(sympy.nsimplify(expression), (self.variable, lb, ub)).doit())
+                print("Bounds", lb, ub, "Expression", expression, "Result", result)
+                return pool.terminal(result)
             else:
                 # Add upper bound check
                 test = Test(upper_bounds[ub_i] - upper_bounds[ub_c], "<=")

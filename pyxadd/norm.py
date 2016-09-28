@@ -23,4 +23,5 @@ def norm(variables, diagram):
     result = Diagram(diagram.pool, SquareWalker(diagram, diagram.profile).walk())
     for var in variables:
         result = SummationWalker(result, var).walk()
+    print(Diagram(diagram.pool, result).evaluate({}))
     return sympy.sqrt(Diagram(diagram.pool, result).evaluate({}))

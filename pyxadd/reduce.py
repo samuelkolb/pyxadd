@@ -1,6 +1,10 @@
+import sympy
+
 from pyxadd.diagram import TerminalNode, InternalNode
 from pyxadd.test import Operators
 from pyxadd.walk import DepthFirstWalker
+
+# TODO Same procedure with SMT solver
 
 
 # noinspection PyPep8Naming
@@ -20,6 +24,7 @@ class LinearReduction(object):
     def _reduce(self, node_id, coefficients, constants):
         node = self.pool.get_node(node_id)
         if isinstance(node, TerminalNode):
+
             return node_id
         elif isinstance(node, InternalNode):
             true_coefficients, true_constants = self._combine(coefficients, constants, node.test, True)
@@ -55,14 +60,18 @@ class LinearReduction(object):
             expression *= -1
         elif operator != Operators.get("<="):
             raise RuntimeError("Unexpected operator: {}".format(operator))
-        constant = float(-expression.coeff(self.variables[0], 0) if len(self.variables) > 0 else -expression)
+        f = sympy.lambdify(tuple(self.variables), -expression)
+        constant = float(f(*([0] * len(self.variables))))
         return list(float(expression.coeff(var, 1)) for var in self.variables), constant
 
     def _is_feasible(self, coefficients, constants):
+        # TODO substitute variable for value if it can be only one value
         import cvxopt
+        print("Coefficients & constants", coefficients, constants)
         cvxopt.solvers.options["show_progress"] = False
         A = cvxopt.matrix(coefficients)
         b = cvxopt.matrix(constants)
         c = cvxopt.matrix([0.0] * len(self.variables))
         status = cvxopt.solvers.lp(c, A, b, solver="cvxopt_glpk")["status"]
         return status == "optimal"
+
