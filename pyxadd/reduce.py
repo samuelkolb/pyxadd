@@ -44,7 +44,6 @@ class LinearReduction(object):
             raise RuntimeError("Unexpected node {} of type {}".format(node, type(node)))
 
     def _combine(self, coefficients, constants, test, test_true):
-        print("Old", coefficients)
         new_coefficients, new_constant = self._test_to_linear_leq_constraint(test, test_true)
         combined_coefficients = []
         for i in range(0, len(new_coefficients)):
@@ -53,8 +52,6 @@ class LinearReduction(object):
             else:
                 combined_coefficients.append(coefficients[i] + [new_coefficients[i]])
         combined_constants = constants + [new_constant]
-        print("New", new_coefficients)
-        print("Combined", combined_coefficients)
         return combined_coefficients, combined_constants
 
     def _test_to_linear_leq_constraint(self, test, test_true):
