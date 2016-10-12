@@ -1,4 +1,4 @@
-from pyxadd.test import Test
+from pyxadd.test import Test, Operator
 from pyxadd.walk import BottomUpWalker
 from pyxadd.diagram import Diagram
 
@@ -9,21 +9,19 @@ class PartialWalker(BottomUpWalker):
         self._assignment = assignment
 
     def visit_internal(self, internal_node, true_message, false_message):
-        expression = self._partial(internal_node.test.expression)
-        operator = internal_node.test.operator
-        if len(expression.free_symbols) == 0:
-            if operator.test(expression, 0):
+        partial = internal_node.test.operator.partial(self._assignment)
+        assert isinstance(partial, Operator)
+
+        if partial.is_tautology():
+            if partial.evaluate({}):
                 return true_message
             else:
                 return false_message
         else:
-            return self._diagram.pool.internal(Test(expression, operator), true_message, false_message)
+            return self._diagram.pool.internal(Test(partial), true_message, false_message)
 
     def visit_terminal(self, terminal_node):
-        return self._diagram.pool.terminal(self._partial(terminal_node.expression))
-
-    def _partial(self, expression):
-        return expression.subs(self._assignment)
+        return self._diagram.pool.terminal(terminal_node.expression.subs(self._assignment))
 
     def walk(self):
         return Diagram(self._diagram.pool, BottomUpWalker.walk(self))

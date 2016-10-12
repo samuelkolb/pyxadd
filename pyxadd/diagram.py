@@ -3,7 +3,7 @@ import re
 import sympy
 
 from pyxadd.operation import Summation, Multiplication, LogicalOr, LogicalAnd
-from pyxadd.test import Operators, Test
+from pyxadd.test import Test
 
 
 def check_node_id(node_id, name="Node id"):
@@ -67,6 +67,24 @@ class InternalNode(Node):
             .format(self.node_id, self.test, self.child_true, self.child_false)
 
 
+class DefaultCache(object):
+    def __init__(self, calculator):
+        self._cache = dict()
+        self._calculator = calculator
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, pool, key):
+        if key in self._cache:
+            self.hits += 1
+            return self._cache[key]
+        else:
+            self.misses += 1
+            value = self._calculator(pool, key)
+            self._cache[key] = value
+            return value
+
+
 class Pool:
     def __init__(self, empty=False):
         self._counter = 1
@@ -75,11 +93,22 @@ class Pool:
         self._expressions = dict()
         self._tests = dict()
         self.vars = dict()
+        self.caches = dict()
+        self._apply_cache = dict()
         if not empty:
             self.zero_id = self.terminal("0")
             self.one_id = self.terminal("1")
             self.pos_inf_id = self.terminal(sympy.oo)
             self.neg_inf_id = self.terminal(-sympy.oo)
+
+    def has_cache(self, name):
+        return name in self.caches
+
+    def add_cache(self, name, cache):
+        self.caches[name] = cache
+
+    def get_cached(self, name, key):
+        return self.caches[name].get(self, key)
 
     def _get_test_id(self, test):
         return self._tests.get(test, None)
@@ -135,7 +164,8 @@ class Pool:
         test_id = self._add_test(test)
         key = (test_id, child_true, child_false)
         node_id = self._internal_map.get(key, None)
-        for var in test.expression.free_symbols:
+        for var in test.operator.variables:
+            var = sympy.sympify(var)
             if var not in self.vars:
                 if v_type is None:
                     raise RuntimeError("Variable {} not declared".format(var))
@@ -156,7 +186,10 @@ class Pool:
         return node_id
 
     def apply(self, operation, root1, root2):
-        # TODO check apply cache
+        key = (operation, root1, root2)
+        if key in self._apply_cache:
+            return self._apply_cache[key]
+
         node1 = self.get_node(root1)
         node2 = self.get_node(root2)
 
@@ -189,7 +222,8 @@ class Pool:
             child_false = self.apply(operation, children1[1], children2[1])
 
             result = self.internal(selected_test, child_true, child_false)
-        # TODO update cache
+
+        self._apply_cache[key] = result
         return result
 
     def invert(self, node_id):
@@ -202,8 +236,10 @@ class Diagram:
         self._pool = pool
         if isinstance(root_node, Node):
             self._root_node = root_node
-        else:
+        elif isinstance(root_node, (int, long)):
             self._root_node = pool.get_node(root_node)
+        else:
+            raise RuntimeError("Unexpected root node {} of type {}".format(root_node, type(root_node)))
         self._profile = None
 
     @property
@@ -239,33 +275,53 @@ class Diagram:
 
         return node.evaluate(assignment)
 
+    def reduce(self, variables=None, method="linear"):
+        if method == "linear":
+            from pyxadd.reduce import LinearReduction
+            reducer = LinearReduction(self.pool)
+        elif method == "smt":
+            from pyxadd.reduce import SmtReduce
+            reducer = SmtReduce(self.pool)
+        else:
+            raise RuntimeError("Unknown reduction method {} (valid options are 'linear' or 'smt')".format(method))
+
+        return Diagram(self.pool, reducer.reduce(self.root_node.node_id, variables))
+
     def __invert__(self):
         return Diagram(self.pool, self.pool.invert(self.root_node.node_id))
 
     def __add__(self, other):
         if not isinstance(other, Diagram):
-            raise TypeError("Cannot sum Diagram with {}".format(type(other)))
+            raise TypeError("Cannot sum diagram with {}".format(type(other)))
         if self.pool != other.pool:
             raise RuntimeError("Can only add diagrams from the same pool")
         return Diagram(self.pool, self.pool.apply(Summation, self.root_node.node_id, other.root_node.node_id))
 
+    def __sub__(self, other):
+        if not isinstance(other, Diagram):
+            raise TypeError("Cannot subtract {} from diagram".format(type(other)))
+        if self.pool != other.pool:
+            raise RuntimeError("Can only substract diagrams from the same pool")
+        minus_one = self.pool.terminal("-1")
+        return self + Diagram(self.pool, self.pool.apply(Multiplication, minus_one, other.root_node.node_id))
+
     def __mul__(self, other):
         if not isinstance(other, Diagram):
-            raise TypeError("Cannot multiply Diagram with {}".format(type(other)))
+            raise TypeError("Cannot multiply diagram with {}".format(type(other)))
         if self.pool != other.pool:
             raise RuntimeError("Can only multiply diagrams from the same pool")
         return Diagram(self.pool, self.pool.apply(Multiplication, self.root_node.node_id, other.root_node.node_id))
 
     def __or__(self, other):
         if not isinstance(other, Diagram):
-            raise TypeError("Cannot perform or on Diagram with {}".format(type(other)))
+            raise TypeError("Cannot perform or on diagram with {}".format(type(other)))
         if self.pool != other.pool:
             raise RuntimeError("Can only operate on diagrams from the same pool")
         return Diagram(self.pool, self.pool.apply(LogicalOr, self.root_node.node_id, other.root_node.node_id))
 
     def __and__(self, other):
         if not isinstance(other, Diagram):
-            raise TypeError("Cannot perform and on Diagram with {}".format(type(other)))
+            raise TypeError("Cannot perform and on diagram with {}".format(type(other)))
         if self.pool != other.pool:
             raise RuntimeError("Can only operate on diagrams from the same pool")
         return Diagram(self.pool, self.pool.apply(LogicalAnd, self.root_node.node_id, other.root_node.node_id))
@@ -298,7 +354,7 @@ class Diagram:
             elif parts[0] == "E":
                 match = pattern.match(parts[2])
                 expression = sympy.sympify(match.group(1))
-                operator = Operators.get(match.group(2))
+                operator = match.group(2)
                 tests[int(parts[1])] = Test(expression, operator)
             elif parts[0] == "I":
                 pool.register_node(InternalNode(int(parts[1]), tests[int(parts[2])], int(parts[3]), int(parts[4])))

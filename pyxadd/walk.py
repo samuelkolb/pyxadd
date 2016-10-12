@@ -189,8 +189,10 @@ class WalkingProfile:
 
 
 class BottomUpWalker(Walker):
-    def __init__(self, diagram, profile):
+    def __init__(self, diagram, profile=None):
         Walker.__init__(self, diagram)
+        if profile is None:
+            profile = diagram.profile
         self._profile = profile
 
     def visit_terminal(self, terminal_node):
@@ -224,10 +226,13 @@ class BottomUpWalker(Walker):
             else:
                 raise RuntimeError("Unexpected node type {}.".format(type(node)))
         if len(messages) != 1:
-            raise RuntimeError("Message cache not reduced to 1.")
+            # export(self._diagram, "visual/walk/diagram.dot")
+            # print(self._profile)
+            raise RuntimeError("Message cache not reduced to 1 ({}).".format(list(messages)))
         root, result = messages.popitem()
         if root != self._diagram.root_node.node_id:
             raise RuntimeError("Remaining node not root.")
+        self._profile.reset()
         return result
 
     def _retrieve_message(self, node_id, messages):

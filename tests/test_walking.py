@@ -1,7 +1,7 @@
 import unittest
 
 from pyxadd.diagram import Diagram, InternalNode, Pool
-from pyxadd.test import Test, Operators
+from pyxadd.test import Test
 from pyxadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingProfile, BottomUpWalker
 
 
@@ -54,10 +54,10 @@ class TestWalking(unittest.TestCase):
         pool.int_var("x")
         x = pool.terminal("x")
         zero = pool.terminal("0")
-        test1 = pool.internal(Test("x - 5", Operators.get("<=")), x, zero)
-        test2 = pool.internal(Test("x + 1", Operators.get(">=")), test1, zero)
-        test3 = pool.internal(Test("x + 2", Operators.get("=")), x, test2)
-        root = pool.internal(Test("x", Operators.get(">=")), test1, test3)
+        test1 = pool.internal(Test("x - 5", "<="), x, zero)
+        test2 = pool.internal(Test("x + 1", ">="), test1, zero)
+        test3 = pool.internal(Test("x + 2", "<="), x, test2)
+        root = pool.internal(Test("x", ">="), test1, test3)
         return Diagram(pool, root)
 
     def test_depth_first(self):

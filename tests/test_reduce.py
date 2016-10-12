@@ -1,7 +1,7 @@
 import unittest
 
 from pyxadd.diagram import Pool, Diagram
-from pyxadd.reduce import LinearReduction
+from pyxadd.reduce import LinearReduction, SmtReduce
 from pyxadd.test import Test
 from pyxadd.view import export
 
@@ -26,4 +26,9 @@ class TestReduce(unittest.TestCase):
     def test_reduce(self):
         export(self.diagram, "to_reduce.dot")
         result = LinearReduction(self.diagram.pool).reduce(self.diagram.root_node.node_id, ["x"])
+        export(Diagram(self.diagram.pool, result), "result.dot")
+
+    def test_smt_reduce(self):
+        export(self.diagram, "to_reduce.dot")
+        result = SmtReduce(self.diagram.pool).reduce(self.diagram.root_node.node_id, ["x"])
         export(Diagram(self.diagram.pool, result), "result.dot")

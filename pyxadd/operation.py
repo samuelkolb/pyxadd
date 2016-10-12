@@ -1,4 +1,11 @@
-class Operation:
+class Operation(object):
+    def __init__(self, symbol):
+        self._symbol = symbol
+
+    @property
+    def symbol(self):
+        return self._symbol
+
     @classmethod
     def compute_terminal(cls, pool, node1, node2):
         # deal with NaN?
@@ -6,8 +13,14 @@ class Operation:
         # two terminals
         raise NotImplementedError()
 
+    def __hash__(self):
+        return hash(self.symbol)
+
 
 class Multiplication(Operation):
+    def __init__(self):
+        Operation.__init__(self, "*")
+
     @classmethod
     def compute_terminal(cls, pool, node1, node2):
         # TODO deal with NaN?
@@ -24,6 +37,9 @@ class Multiplication(Operation):
 
 
 class Summation(Operation):
+    def __init__(self):
+        Operation.__init__(self, "+")
+
     @classmethod
     def compute_terminal(cls, pool, node1, node2):
         # TODO deal with NaN?
@@ -42,6 +58,9 @@ class Summation(Operation):
 
 
 class LogicalOr(Operation):
+    def __init__(self):
+        Operation.__init__(self, "|")
+
     @classmethod
     def compute_terminal(cls, pool, node1, node2):
         # TODO deal with NaN?
@@ -65,6 +84,9 @@ class LogicalOr(Operation):
 
 
 class LogicalAnd(Operation):
+    def __init__(self):
+        Operation.__init__(self, "&")
+
     @classmethod
     def compute_terminal(cls, pool, node1, node2):
         # TODO deal with NaN?
