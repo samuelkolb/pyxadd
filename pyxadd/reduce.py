@@ -89,7 +89,7 @@ class LinearReduction(Reducer):
         c = cvxopt.matrix([0.0] * len(self.variables))
         try:
             status = cvxopt.solvers.lp(c, A, b, solver="cvxopt_glpk")["status"]
-            return status == "optimal"
+            return "infeasible" not in status
         except ValueError as _:
             return True
 
