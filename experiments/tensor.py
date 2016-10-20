@@ -61,14 +61,16 @@ class RedGreenBlueDiagrams(object):
 screen_width = 240
 screen_height = 120
 
-grid_size = 6
+# FIXME: RGB : Extra variable!!
+
+grid_size = 5
 grid_domain_size = grid_size * 2
 
 column_variables = [("x", 0, screen_width / grid_domain_size - 1), ("xs", 0, grid_domain_size - 1)]
 row_variables = [("y", 0, screen_height / grid_domain_size - 1), ("ys", 0, grid_domain_size - 1)]
 
 
-def reduce(diagram, linear=False):
+def reduce(diagram, linear=True):
     variables = [t[0] for t in column_variables + row_variables]
     if linear:
         reduction = LinearReduction(diagram.pool)
@@ -102,6 +104,7 @@ x_start_2 = border + available_width / 3 - 1
 x_start_3 = border + 2 * available_width / 3 - 1
 
 center_y = screen_height / 2
+
 
 def slope_intercept(p1, p2):
     #   (I) y1 = a * x1 + b
@@ -139,13 +142,13 @@ right &= b.test("{y}".format(y=screen_y), "<=", "{a} * {x} + {b}".format(a=slope
 
 
 full_object = left | center | right
-color = b.terminal(200)
+color = b.terminal(170)
 export(full_object, "visual/full_object.dot")
 
 # Build light
 
 # intensity = 1 / (screen_x ^ 2 + screen_y ^ 2)
-light = b.terminal("1 / (1 + (({xc} - {x}) ** 2 + ({yc} - {y}) ** 2) * 0.001)"
+light = b.terminal("1 / (1 + (({xc} - {x}) ** 2 + ({yc} - {y}) ** 2) * 0.0001)"
                    .format(xc=screen_width / 2, x=screen_x, yc=screen_height / 2, y=screen_y))
 
 # Combine grid and object
@@ -153,21 +156,22 @@ light = b.terminal("1 / (1 + (({xc} - {x}) ** 2 + ({yc} - {y}) ** 2) * 0.001)"
 zero = b.terminal(0)
 one = b.terminal(1)
 full = b.terminal(255)
-grid_discount = b.terminal(0.8)
+grid_discount = b.terminal(0.6)
 light_factor = b.terminal(1)
-background = b.terminal(150)
+background = b.terminal(100)
 combined = b.ite(full_object, color, background)
 light_effect = full_object * ((full - combined) * light) * light_factor
 
-# combined = RedGreenBlueDiagrams.all(combined)
+# combined = RedGreenBlueDiagrams.all(combined, combined, combined)
 # combined += {"green": light_effect}
+
 combined += light_effect
 
 grid_overlay = combined * grid * grid_discount
-grid_overlay -= grid_overlay * light * b.terminal(0.8)
+# grid_overlay -= grid_overlay * light * b.terminal(0.6)
 combined -= grid_overlay
 
-combined = reduce(combined)
+# combined = reduce(combined)
 
 if isinstance(combined, Diagram):
     export(combined, "visual/combined.dot")
@@ -175,6 +179,10 @@ if isinstance(combined, Diagram):
     combined_reduced = reduce(combined)
     export(combined_reduced, "visual/combined_reduced.dot")
     print("Exported reduced combined diagram")
+    export(grid, "visual/grid.dot")
+    print("Exported grid diagram")
+    export(light, "visual/light.dot")
+    print("Exported light diagram")
 
 
 # Draw png
