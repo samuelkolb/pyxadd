@@ -5,6 +5,7 @@ import sympy
 from pyxadd.diagram import Diagram, DefaultCache, Pool
 from pyxadd.operation import Summation, Multiplication
 from pyxadd.test import Test
+from pyxadd.variables import VariableFinder
 from pyxadd.walk import DownUpWalker
 
 
@@ -22,7 +23,9 @@ class SummationCache(DefaultCache):
             :return: a lambda expression that substitutes the given lower- and upper bound in the sum
             """
             expression = pool.get_node(node_id).expression
-            result = sympy.Sum(expression, (variable, self.lb, self.ub)).doit()
+            variables = {str(v): v for v in expression.free_symbols}
+            v = variables[variable] if variable in variables else sympy.S(variable)
+            result = sympy.Sum(expression, (v, self.lb, self.ub)).doit()
             return lambda lb, ub: result.subs({self.lb: lb, self.ub: ub})
 
         super(SummationCache, self).__init__(calculator)
@@ -36,7 +39,7 @@ class SummationCache(DefaultCache):
 class SummationWalker(DownUpWalker):
     def __init__(self, diagram, variable):
         DownUpWalker.__init__(self, diagram)
-        self.variable = sympy.sympify(variable)
+        self.variable = str(variable)
         # The node cache keeps track of the updated bounds per test
         self.node_cache = dict()
         self.sum_cache = dict()
@@ -52,25 +55,25 @@ class SummationWalker(DownUpWalker):
         else:
             lb, ub, bounds = -float("inf"), float("inf"), []
 
-        if operator.is_singular() and str(self.variable) in operator.variables:
+        if operator.is_singular() and self.variable in operator.variables:
             # Test on exactly the given variable: update bounds for the two children (node will be collapsed)
-            lb_t, ub_t = internal_node.test.update_bounds(str(self.variable), lb, ub, test=True)
-            lb_f, ub_f = internal_node.test.update_bounds(str(self.variable), lb, ub, test=False)
+            lb_t, ub_t = internal_node.test.update_bounds(self.variable, lb, ub, test=True)
+            lb_f, ub_f = internal_node.test.update_bounds(self.variable, lb, ub, test=False)
             return (lb_t, ub_t, bounds), (lb_f, ub_f, bounds)
 
-        elif len(operator.variables) > 1 and str(self.variable) in operator.variables:
+        elif len(operator.variables) > 1 and self.variable in operator.variables:
             # Test that includes the given variable and others: rewrite and pass both options (node will be collapsed)
             def to_exp(op):
                 expression = sympy.sympify(op.rhs)
                 for k, v in op.lhs.items():
-                    if k != str(self.variable):
+                    if k != self.variable:
                         expression = -sympy.S(k) * v + expression
                 return expression
 
-            rewritten_positive = operator.times(1 / operator.coefficient(str(self.variable))).weak()
+            rewritten_positive = operator.times(1 / operator.coefficient(self.variable)).weak()
             exp_pos = to_exp(rewritten_positive)
 
-            rewritten_negative = (~operator).times(1 / operator.coefficient(str(self.variable))).weak()
+            rewritten_negative = (~operator).times(1 / operator.coefficient(self.variable)).weak()
             exp_neg = to_exp(rewritten_negative)
 
             true_bound = (rewritten_positive.symbol, exp_pos)
@@ -163,8 +166,32 @@ class SummationWalker(DownUpWalker):
 
 
 def matrix_multiply(pool, root1, root2, variables):
-    result = Diagram(pool, pool.apply(Multiplication, root1, root2))
+    return sum_out(pool, pool.apply(Multiplication, root1, root2), variables)
+
+
+def sum_out(pool, root, variables):
+    variables = list(str(v) for v in variables)
+    diagram = pool.diagram(root)
+    result = diagram
     for var in variables:
-        # FIXME Inconsistent results int and Diagram, probably return value in loop is int
-        result = SummationWalker(result, var).walk()
-    return result
+        result = pool.diagram(SummationWalker(result, var).walk())
+    _check_output(diagram, result, variables)
+    return result.root_node.node_id
+
+
+def _check_output(start_diagram, end_diagram, variables):
+    present = set([str(v) for v in VariableFinder(start_diagram).walk()])
+    remaining = set([str(v) for v in VariableFinder(end_diagram).walk()])
+    variables = [str(v) for v in variables]
+    if not remaining.issubset(present):
+        raise RuntimeError("New variables ({}) have been introduced in the diagram (which contained {}) after summation"
+                           .format(list(remaining - present), present))
+    if not present.issubset(remaining | set(variables)):
+        raise RuntimeError("Some variables ({}) have been erroneously removed: they are not present in the diagram "
+                           "after summation ({}) nor in the variables to remove ({})"
+                           .format(list(present - remaining - set(variables)), list(remaining), variables))
+    if len(remaining & set(variables)) != 0:
+        raise RuntimeError("Some variables ({}) that should be summed out ({}) still appear in the diagram after "
+                           "summation. The diagram started out with variables {} and now contains {}"
+                           .format(list(remaining & set(variables)), variables, list(present), list(remaining)),
+                           end_diagram)

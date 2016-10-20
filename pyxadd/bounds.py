@@ -6,7 +6,7 @@ from pyxadd.walk import BottomUpWalker, DownUpWalker
 class BoundsWalker(DownUpWalker):
     def __init__(self, variable, diagram):
         DownUpWalker.__init__(self, diagram)
-        self.variable = variable
+        self.variable = str(variable)
 
     def visit_internal_aggregate(self, internal_node, true_result, false_result):
         lb_t, ub_t = true_result
@@ -19,8 +19,8 @@ class BoundsWalker(DownUpWalker):
         else:
             lb, ub = -sympy.oo, sympy.oo
 
-        expression = internal_node.test.expression
-        if len(expression.free_symbols) == 1 and self.variable in expression.free_symbols:
+        operator = internal_node.test.operator
+        if operator.is_singular() and self.variable in operator.variables:
             lb_t, ub_t = internal_node.test.update_bounds(self.variable, lb, ub, test=True)
             lb_f, ub_f = internal_node.test.update_bounds(self.variable, lb, ub, test=False)
             return (lb_t, ub_t), (lb_f, ub_f)
@@ -30,6 +30,9 @@ class BoundsWalker(DownUpWalker):
         if terminal_node.expression == 0:
             return sympy.oo, -sympy.oo
         return parent_message
+
+
+
 
 
 def get_bounds(variable, diagram):

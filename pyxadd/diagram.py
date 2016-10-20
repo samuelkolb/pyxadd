@@ -35,7 +35,11 @@ class TerminalNode(Node):
         return self._expression
 
     def evaluate(self, assignment):
-        return self._f(*[assignment[str(v)] for v in self._symbols])
+        try:
+            return self._f(*[assignment[str(v)] for v in self._symbols])
+        except KeyError as e:
+            raise RuntimeError(("The assignment {a} contains no value for variable {v} [node {n} ]"
+                  .format(a=assignment, v=e.args[0], n=self)))
 
     def __repr__(self):
         return "T(id: {}, expression: {})".format(self.node_id, self.expression)
@@ -132,14 +136,14 @@ class Pool:
 
     def int_var(self, *args):
         for name in args:
-            self.vars[sympy.sympify(name)] = "int"
+            self.vars[str(name)] = "int"
 
     def add_var(self, name, v_type):
         if v_type == "int":
             self.int_var(name)
 
     def get_var_type(self, name):
-        return self.vars[sympy.sympify(name)]
+        return self.vars[str(name)]
 
     def terminal(self, expression, v_type=None):
         if not isinstance(expression, sympy.Basic):
@@ -147,7 +151,7 @@ class Pool:
         if expression in self._expressions:
             return self._expressions[expression]
         for var in expression.free_symbols:
-            if var not in self.vars:
+            if str(var) not in self.vars:
                 if v_type is None:
                     raise RuntimeError("Variable {} not declared".format(var))
                 else:
@@ -165,8 +169,7 @@ class Pool:
         key = (test_id, child_true, child_false)
         node_id = self._internal_map.get(key, None)
         for var in test.operator.variables:
-            var = sympy.sympify(var)
-            if var not in self.vars:
+            if str(var) not in self.vars:
                 if v_type is None:
                     raise RuntimeError("Variable {} not declared".format(var))
                 else:
@@ -229,6 +232,9 @@ class Pool:
     def invert(self, node_id):
         minus_one = self.terminal("-1")
         return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
+
+    def diagram(self, node_id):
+        return Diagram(self, self.get_node(node_id))
 
 
 class Diagram:
@@ -325,6 +331,7 @@ class Diagram:
         if self.pool != other.pool:
             raise RuntimeError("Can only operate on diagrams from the same pool")
         return Diagram(self.pool, self.pool.apply(LogicalAnd, self.root_node.node_id, other.root_node.node_id))
+
     # T	1	0	null
     # T	2	1	null
     # E	5	(1 * y) > 0

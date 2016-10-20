@@ -3,6 +3,7 @@ import sympy
 from pyxadd.diagram import Diagram
 from pyxadd.matrix_vector import SummationWalker
 from pyxadd.operation import Summation, Multiplication
+from pyxadd.variables import VariableFinder
 from pyxadd.walk import BottomUpWalker
 
 
@@ -20,7 +21,17 @@ class SquareWalker(BottomUpWalker):
 
 
 def norm(variables, diagram):
-    result = Diagram(diagram.pool, SquareWalker(diagram, diagram.profile).walk())
-    for var in variables:
-        result = SummationWalker(result, var).walk()
-    return sympy.sqrt(Diagram(diagram.pool, result).evaluate({}))
+    from matrix_vector import sum_out
+    squared = SquareWalker(diagram, diagram.profile).walk()
+    normed = sum_out(diagram.pool, squared, variables)
+    diagram = Diagram(diagram.pool, normed)
+    try:
+        value = diagram.evaluate({})
+        return sympy.sqrt(value)
+    except RuntimeError as e:
+        found = VariableFinder(diagram).walk()
+        if len(found) > 0:
+            raise RuntimeError("Variables {f} were not eliminated (given variables were {v})"
+                               .format(f=list(found), v=variables))
+        else:
+            raise e

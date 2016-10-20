@@ -33,8 +33,9 @@ class LinearReduction(Reducer):
 
     def reduce(self, node_id, variables=None):
         if variables is None:
-            variables = self._get_variables(node_id)
-        self.variables = variables
+            self.variables = self._get_variables(node_id)
+        else:
+            self.variables = list(str(v) for v in variables)
         return self._reduce(node_id, [], [])
 
     def _reduce(self, node_id, coefficients, constants):
@@ -92,6 +93,9 @@ class LinearReduction(Reducer):
             return "infeasible" not in status
         except ValueError as _:
             return True
+        except TypeError as e:
+            print(coefficients, constants)
+            raise e
 
 
 class SmtReduce(Reducer):

@@ -5,6 +5,10 @@ class Walker:
     def __init__(self, diagram):
         self._diagram = diagram
 
+    @property
+    def diagram(self):
+        return self._diagram
+
     def walk(self):
         """
         Walk the given diagram.
