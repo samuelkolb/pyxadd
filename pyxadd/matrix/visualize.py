@@ -5,6 +5,7 @@ import matplotlib.patches as patches
 import numpy
 from pyxadd.diagram import InternalNode
 
+
 def visualize(matrix, filename):
     mapping = dict()
     for x in range(1, matrix.width + 1):
@@ -19,8 +20,7 @@ def visualize(matrix, filename):
 def find_node(x, y, diagram):
     node = diagram.root_node
     while isinstance(node, InternalNode):
-        if node.test.evaluate({'x': x,
-         'y': y}):
+        if node.test.evaluate({'x': x, 'y': y}):
             node = diagram.node(node.child_true)
         else:
             node = diagram.node(node.child_false)
@@ -33,14 +33,13 @@ def visualize_ground(matrix, filename):
     for x in range(1, matrix.width + 1):
         for y in range(1, matrix.height + 1):
             diagram = matrix.diagram
-            mapping[x, y] = diagram.evaluate({'x': x,
-             'y': y})
+            mapping[x, y] = diagram.evaluate({'x': x, 'y': y})
 
     draw(mapping, matrix.width, matrix.height, filename)
 
 
 def get_colors(n):
-    hsv_tuples = [ (x * 1.0 / n, 0.75, 0.75) for x in range(n) ]
+    hsv_tuples = [(x * 1.0 / n, 0.75, 0.75) for x in range(n)]
     hex_colors = []
     for hsv_tuple in hsv_tuples:
         rgb = colorsys.hsv_to_rgb(*hsv_tuple)

@@ -17,16 +17,22 @@ class SummationCache(DefaultCache):
         self.lb = sympy.S("lb")
         self.ub = sympy.S("ub")
 
-        def calculator(pool, (variable, node_id)):
+        def calculator(pool, var_node):
             """
             Symbolically sums the expression of the node.
             :return: a lambda expression that substitutes the given lower- and upper bound in the sum
             """
+            variable, node_id = var_node
             expression = pool.get_node(node_id).expression
             variables = {str(v): v for v in expression.free_symbols}
             v = variables[variable] if variable in variables else sympy.S(variable)
-            result = sympy.Sum(expression, (v, self.lb, self.ub)).doit()
-            return lambda lb, ub: result.subs({self.lb: lb, self.ub: ub})
+            try:
+                result = sympy.simplify(sympy.Sum(expression, (v, self.lb, self.ub)).doit())
+                return lambda lb, ub: result.subs({self.lb: lb, self.ub: ub})
+            except sympy.BasePolynomialError as e:
+                print("Problem trying to sum the expression {} for variable {}"
+                      .format(expression, v))
+                raise e
 
         super(SummationCache, self).__init__(calculator)
 
