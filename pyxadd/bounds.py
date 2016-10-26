@@ -32,9 +32,6 @@ class BoundsWalker(DownUpWalker):
         return parent_message
 
 
-
-
-
 def get_bounds(variable, diagram):
     walker = BoundsWalker(variable, diagram)
     return walker.walk()
