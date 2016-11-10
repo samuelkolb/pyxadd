@@ -73,12 +73,20 @@ class InternalNode(Node):
 
 class DefaultCache(object):
     def __init__(self, calculator):
+        """
+        :param callable calculator:
+        """
         self._cache = dict()
         self._calculator = calculator
         self.hits = 0
         self.misses = 0
 
     def get(self, pool, key):
+        """
+        :param Pool pool: The pool this cache is used for
+        :param key: The key to compute a value for
+        :return: The value
+        """
         if key in self._cache:
             self.hits += 1
             return self._cache[key]
@@ -87,6 +95,21 @@ class DefaultCache(object):
             value = self._calculator(pool, key)
             self._cache[key] = value
             return value
+
+    def contains(self, key):
+        """
+        :param key: The key to lookup
+        :return: True if there is a value cached for the given key, False otherwise
+        """
+        return key in self._cache
+
+    def clear(self):
+        """
+        Clears the cache
+        """
+        self._cache = dict()
+        self.hits = 0
+        self.misses = 0
 
 
 class Pool:
@@ -105,14 +128,21 @@ class Pool:
             self.pos_inf_id = self.terminal(sympy.oo)
             self.neg_inf_id = self.terminal(-sympy.oo)
 
+        self.add_cache("diagram", DefaultCache(lambda pool, node_id: Diagram(pool, pool.get_node(node_id))))
+
     def has_cache(self, name):
         return name in self.caches
 
     def add_cache(self, name, cache):
+        if name in self.caches:
+            raise RuntimeError("There is already a cache with name {}".format(name))
         self.caches[name] = cache
 
     def get_cached(self, name, key):
         return self.caches[name].get(self, key)
+
+    def is_cached(self, name, key):
+        return self.caches[name].contains(key)
 
     def _get_test_id(self, test):
         return self._tests.get(test, None)
@@ -229,12 +259,15 @@ class Pool:
         self._apply_cache[key] = result
         return result
 
+    def test_smaller_eq(self, test1, test2):
+        return self._get_test_id(test1) <= self._get_test_id(test2)
+
     def invert(self, node_id):
         minus_one = self.terminal("-1")
         return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
 
     def diagram(self, node_id):
-        return Diagram(self, self.get_node(node_id))
+        return self.get_cached("diagram", node_id)
 
 
 class Diagram:

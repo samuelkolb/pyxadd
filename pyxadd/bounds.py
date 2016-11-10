@@ -24,17 +24,17 @@ class BoundsWalker(DownUpWalker):
             lb_t, ub_t = internal_node.test.update_bounds(self.variable, lb, ub, test=True)
             lb_f, ub_f = internal_node.test.update_bounds(self.variable, lb, ub, test=False)
             return (lb_t, ub_t), (lb_f, ub_f)
-        return parent_message, parent_message
+        return (lb, ub), (lb, ub)
 
     def visit_terminal(self, terminal_node, parent_message):
         if terminal_node.expression == 0:
             return sympy.oo, -sympy.oo
-        return parent_message
+        return parent_message if parent_message is not None else (-sympy.oo, sympy.oo)
 
 
 def get_bounds(variable, diagram):
     walker = BoundsWalker(variable, diagram)
-    return walker.walk()
+    return tuple(int(e) for e in walker.walk())
 
 
 def get_domain_size(variable, diagram):

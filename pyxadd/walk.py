@@ -1,8 +1,11 @@
-from pyxadd.diagram import InternalNode, TerminalNode
+from pyxadd.diagram import InternalNode, TerminalNode, DefaultCache, Pool, Diagram
 
 
 class Walker:
     def __init__(self, diagram):
+        """
+        :param Diagram diagram:
+        """
         self._diagram = diagram
 
     @property
@@ -133,10 +136,19 @@ class WalkingProfile:
         self._next = 0
 
     def reset(self):
+        """
+        Resets the profile.
+        """
         self._counts = {n: (self._counts[n][0], 0) for n in self._counts}
         self._next = 0
 
     def count(self, node):
+        """
+        Increments the counter for the given node. Can be used to keep track of what nodes still have direct parents to
+        be visited.
+        :param node: The node to be counted
+        :return bool: True iff the count is now equal to the number of parents of the given node, else False
+        """
         c, i = self._counts[node]
         i += 1
         self._counts[node] = (c, i)
@@ -148,9 +160,15 @@ class WalkingProfile:
             raise RuntimeError("Count is already saturated")
 
     def has_next(self):
+        """
+        :return bool: True iff there is a next node to visit, else False
+        """
         return self._next < len(self._nodes)
 
     def next(self):
+        """
+        :return int: The id of the next node to visit
+        """
         current = self._nodes[self._next]
         self._next += 1
         return current
@@ -244,3 +262,63 @@ class BottomUpWalker(Walker):
             return messages.pop(node_id, None)
         else:
             return messages[node_id]
+
+
+def profile_cache_is_enabled(pool):
+    return pool.has_cache("profile")
+
+
+def add_profile_cache(pool):
+    def construct_walking_profile(p, node):
+        return WalkingProfile(p.diagram(node))
+    if not profile_cache_is_enabled(pool):
+        pool.add_cache("profile", DefaultCache(construct_walking_profile))
+
+
+def get_profile(root, pool=None):
+    if isinstance(root, Diagram):
+        pool = root.pool
+        root = root.root_node.node_id
+    assert isinstance(pool, Pool)
+    add_profile_cache(pool)
+    return pool.get_cached("profile", root)
+
+
+def profile_exists(root, pool=None):
+    if isinstance(root, Diagram):
+        pool = root.pool
+        root = root.root_node.node_id
+    assert isinstance(pool, Pool)
+    return profile_cache_is_enabled(pool) and pool.is_cached("profile", root)
+
+
+def walk_leaves(f, root, pool=None):
+    """
+    Calls the given function f on all leaf nodes of the given diagram
+    :param f: The function to run on leaf nodes
+    :param Diagram|int root: The diagram or root node id
+    :param Pool|None pool: If the root is an integer, a pool needs to be provided
+    """
+    if isinstance(root, Diagram):
+        pool = root.pool
+        root = root.root_node.node_id
+
+    if profile_exists(root, pool=pool):
+        profile = get_profile(root, pool=pool)
+        assert isinstance(profile, WalkingProfile)
+        while profile.has_next():
+            node = pool.get_node(profile.next())
+            if isinstance(node, TerminalNode):
+                f(pool, node)
+    else:
+        raise RuntimeError("Not implemented")
+
+
+def map_leaves(f, root, pool=None):
+    result = []
+
+    def wrap(p, n):
+        result.append(f(p, n))
+
+    walk_leaves(wrap, root, pool=pool)
+    return result
