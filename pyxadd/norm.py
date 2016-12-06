@@ -1,7 +1,6 @@
 import sympy
 
 from pyxadd.diagram import Diagram
-from pyxadd.matrix_vector import SummationWalker
 from pyxadd.operation import Summation, Multiplication
 from pyxadd.variables import VariableFinder
 from pyxadd.walk import BottomUpWalker
@@ -21,12 +20,22 @@ class SquareWalker(BottomUpWalker):
 
 
 def norm(variables, diagram):
-    from matrix_vector import sum_out
+    from pyxadd.matrix_vector import sum_out
+    from pyxadd.view import export
+    # export(diagram, "visual/richardson/before_square.dot")
     squared = SquareWalker(diagram, diagram.profile).walk()
+    # squared_d = Diagram(diagram.pool, squared)
+    # print("Squared: ", [squared_d.evaluate({"r": i}) for i in range(1, 11)])
+    # export(squared_d, "visual/richardson/after_square.dot")
     normed = sum_out(diagram.pool, squared, variables)
+    # print("Variable: ", variables)
+    # export(Diagram(diagram.pool, normed), "visual/richardson/normed.dot")
     diagram = Diagram(diagram.pool, normed)
     try:
         value = diagram.evaluate({})
+        if value < 0:
+            raise RuntimeError("The squared sum is negative ({})".format(value))
+        # print("Squared value {}".format(value))
         return sympy.sqrt(value)
     except RuntimeError as e:
         found = VariableFinder(diagram).walk()
