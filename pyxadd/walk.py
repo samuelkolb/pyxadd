@@ -278,7 +278,7 @@ def add_profile_cache(pool):
 def get_profile(root, pool=None):
     if isinstance(root, Diagram):
         pool = root.pool
-        root = root.root_node.node_id
+        root = root.root_id
     assert isinstance(pool, Pool)
     add_profile_cache(pool)
     return pool.get_cached("profile", root)
@@ -287,7 +287,7 @@ def get_profile(root, pool=None):
 def profile_exists(root, pool=None):
     if isinstance(root, Diagram):
         pool = root.pool
-        root = root.root_node.node_id
+        root = root.root_id
     assert isinstance(pool, Pool)
     return profile_cache_is_enabled(pool) and pool.is_cached("profile", root)
 
@@ -301,17 +301,16 @@ def walk_leaves(f, root, pool=None):
     """
     if isinstance(root, Diagram):
         pool = root.pool
-        root = root.root_node.node_id
-
-    if profile_exists(root, pool=pool):
-        profile = get_profile(root, pool=pool)
-        assert isinstance(profile, WalkingProfile)
-        while profile.has_next():
-            node = pool.get_node(profile.next())
-            if isinstance(node, TerminalNode):
-                f(pool, node)
+        root = root.root_id
     else:
-        raise RuntimeError("Not implemented")
+        assert isinstance(pool, Pool)
+
+    profile = get_profile(root, pool=pool)
+    assert isinstance(profile, WalkingProfile)
+    while profile.has_next():
+        node = pool.get_node(profile.next())
+        if isinstance(node, TerminalNode):
+            f(pool, node)
 
 
 def map_leaves(f, root, pool=None):
