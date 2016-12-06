@@ -21,6 +21,7 @@ class Reducer(object):
         return VariableFinder(Diagram(self.pool, node_id)).walk()
 
 
+# TODO Does it produce diagrams in correct form?
 # noinspection PyPep8Naming
 class LinearReduction(Reducer):
     def __init__(self, pool):
