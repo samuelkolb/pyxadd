@@ -3,7 +3,7 @@ from pyxadd.bounds import get_bounds
 from pyxadd.build import Builder
 from pyxadd.matrix.matrix import assignments
 from pyxadd.reduce import LinearReduction
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 from pyxadd.walk import DownUpWalker
 from sympy import oo
 
@@ -35,8 +35,8 @@ class ConstantWalker(DownUpWalker):
             bounds_f[var] = internal_node.test.update_bounds(var, lb, ub, test=False)
 
         pool = self.diagram.pool
-        path_t = path & pool.diagram(pool.internal(Test(operator), pool.one_id, pool.zero_id))
-        path_f = path & pool.diagram(pool.internal(Test(~operator), pool.one_id, pool.zero_id))
+        path_t = path & pool.diagram(pool.internal(LinearTest(operator), pool.one_id, pool.zero_id))
+        path_f = path & pool.diagram(pool.internal(LinearTest(~operator), pool.one_id, pool.zero_id))
 
         return (bounds_t, path_t), (bounds_f, path_f)
 

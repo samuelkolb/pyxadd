@@ -3,7 +3,7 @@ import re
 import sympy
 
 from pyxadd.operation import Summation, Multiplication, LogicalOr, LogicalAnd
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 
 
 def check_node_id(node_id, name="Node id"):
@@ -28,15 +28,20 @@ class TerminalNode(Node):
             expression = sympy.sympify(expression)
         self._expression = expression
         self._symbols = tuple(expression.free_symbols)
-        self._f = sympy.lambdify(self._symbols, expression)
+        self._f = None
 
     @property
     def expression(self):
         return self._expression
 
+    def _get_f(self):
+        if self._f is None:
+            self._f = sympy.lambdify(self._symbols, self._expression)
+        return self._f
+
     def evaluate(self, assignment):
         try:
-            return self._f(*[assignment[str(v)] for v in self._symbols])
+            return self._get_f()(*[assignment[str(v)] for v in self._symbols])
         except KeyError as e:
             raise RuntimeError(("The assignment {a} contains no value for variable {v} [node {n} ]"
                   .format(a=assignment, v=e.args[0], n=self)))
@@ -168,9 +173,19 @@ class Pool:
         for name in args:
             self.vars[str(name)] = "int"
 
+    def bool_var(self, *args):
+        for name in args:
+            self.vars[str(name)] = "bool"
+
     def add_var(self, name, v_type):
-        if v_type == "int":
-            self.int_var(name)
+        mapping = {
+            "int": self.int_var,
+            "bool": self.bool_var,
+        }
+        if v_type not in mapping:
+            raise RuntimeError("Type {} is not supported".format(v_type))
+        else:
+            mapping[v_type](name)
 
     def get_var_type(self, name):
         return self.vars[str(name)]
@@ -198,7 +213,7 @@ class Pool:
         test_id = self._add_test(test)
         key = (test_id, child_true, child_false)
         node_id = self._internal_map.get(key, None)
-        for var in test.operator.variables:
+        for var in test.variables:
             if str(var) not in self.vars:
                 if v_type is None:
                     raise RuntimeError("Variable {} not declared".format(var))
@@ -287,6 +302,10 @@ class Diagram:
         :rtype: Node
         """
         return self._root_node
+
+    @property
+    def root_id(self):
+        return self.root_node.node_id
 
     @property
     def pool(self):
@@ -395,6 +414,6 @@ class Diagram:
                 match = pattern.match(parts[2])
                 expression = sympy.sympify(match.group(1))
                 operator = match.group(2)
-                tests[int(parts[1])] = Test(expression, operator)
+                tests[int(parts[1])] = LinearTest(expression, operator)
             elif parts[0] == "I":
                 pool.register_node(InternalNode(int(parts[1]), tests[int(parts[2])], int(parts[3]), int(parts[4])))

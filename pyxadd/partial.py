@@ -1,4 +1,4 @@
-from pyxadd.test import Test, Operator
+from pyxadd.test import LinearTest, Operator
 from pyxadd.walk import BottomUpWalker
 from pyxadd.diagram import Diagram
 
@@ -18,7 +18,7 @@ class PartialWalker(BottomUpWalker):
             else:
                 return false_message
         else:
-            return self._diagram.pool.internal(Test(partial), true_message, false_message)
+            return self._diagram.pool.internal(LinearTest(partial), true_message, false_message)
 
     def visit_terminal(self, terminal_node):
         return self._diagram.pool.terminal(terminal_node.expression.subs(self._assignment))

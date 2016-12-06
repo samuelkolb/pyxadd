@@ -2,7 +2,7 @@ import unittest
 
 from pyxadd.diagram import Pool, Diagram
 from pyxadd.reduce import LinearReduction, SmtReduce
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 from pyxadd.view import export
 
 
@@ -10,10 +10,10 @@ class TestReduce(unittest.TestCase):
     def setUp(self):
         pool = Pool()
         pool.int_var("x")
-        lb = Diagram(pool, pool.bool_test(Test("x - 1", ">=")))
-        ub = Diagram(pool, pool.bool_test(Test("x - 10", "<=")))
-        test = Diagram(pool, pool.bool_test(Test("x - 5", "<=")))
-        redundant_test = Diagram(pool, pool.bool_test(Test("x - 6", "<=")))
+        lb = Diagram(pool, pool.bool_test(LinearTest("x - 1", ">=")))
+        ub = Diagram(pool, pool.bool_test(LinearTest("x - 10", "<=")))
+        test = Diagram(pool, pool.bool_test(LinearTest("x - 5", "<=")))
+        redundant_test = Diagram(pool, pool.bool_test(LinearTest("x - 6", "<=")))
 
         term_one = Diagram(pool, pool.terminal("x + 2"))
         term_two = Diagram(pool, pool.terminal("7 - 2 * (x - 5)"))

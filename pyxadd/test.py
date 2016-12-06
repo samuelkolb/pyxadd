@@ -140,6 +140,9 @@ class Operator:
         updated = self._update(lhs, rhs)
         return updated
 
+    def rename(self, translation):
+        return self._update({translation[k] if k in translation else k: v for k, v in self._lhs.items()}, self.rhs)
+
 
 class LessThan(Operator):
     def __init__(self, lhs, rhs):
@@ -257,7 +260,28 @@ class GreaterThanEqual(Operator):
         return GreaterThanEqual(lhs, rhs)
 
 
-class Test:
+class Test(object):
+    @property
+    def variables(self):
+        raise NotImplementedError()
+
+    def evaluate(self, assignment):
+        raise NotImplementedError()
+
+    def rename(self, translation):
+        raise NotImplementedError()
+
+    def __repr__(self):
+        raise NotImplementedError()
+
+    def __hash__(self):
+        raise NotImplementedError()
+
+    def __eq__(self, other):
+        raise NotImplementedError()
+
+
+class LinearTest(Test):
     def __init__(self, lhs, symbol=None, rhs=0):
         if symbol is None:
             operator = lhs
@@ -274,6 +298,10 @@ class Test:
     def operator(self):
         return self._operator
 
+    @property
+    def variables(self):
+        return self.operator.variables
+
     def update_bounds(self, var, lb, ub, test=True):
         if len(self.operator.variables) != 1:
             raise RuntimeError("Test does not have exactly one variable (it has {})".format(self.operator.variables))
@@ -285,6 +313,9 @@ class Test:
     def evaluate(self, assignment):
         return self.operator.evaluate(assignment)
 
+    def rename(self, translation):
+        return LinearTest(self.operator.rename(translation))
+
     def __repr__(self):
         return str(self.operator)
 
@@ -292,4 +323,34 @@ class Test:
         return hash(self.operator)
 
     def __eq__(self, other):
-        return isinstance(other, Test) and self.operator == other.operator
+        return isinstance(other, LinearTest) and self.operator == other.operator
+
+
+class BinaryTest(Test):
+    def __init__(self, var):
+        self._var = var
+
+    @property
+    def var(self):
+        return self._var
+
+    @property
+    def variables(self):
+        return [self.var]
+
+    def evaluate(self, assignment):
+        return bool(assignment(self.var))
+
+    def rename(self, translation):
+        if self.var in translation:
+            return BinaryTest(translation[self.var])
+        return self
+
+    def __repr__(self):
+        return str(self.var)
+
+    def __hash__(self):
+        return hash(self.var)
+
+    def __eq__(self, other):
+        return isinstance(other, BinaryTest) and self.var == other.var

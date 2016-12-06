@@ -3,7 +3,7 @@ import unittest
 from pyxadd.build import Builder
 from pyxadd.diagram import Pool, Diagram
 from pyxadd.reduce import LinearReduction, SmtReduce
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 from pyxadd.variables import VariableFinder
 from pyxadd.view import export
 

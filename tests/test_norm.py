@@ -3,7 +3,7 @@ import unittest
 from pyxadd import norm
 from pyxadd.diagram import Pool, Diagram
 from pyxadd.norm import SquareWalker
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 from pyxadd.view import export
 
 
@@ -11,9 +11,9 @@ class TestNorm(unittest.TestCase):
     def setUp(self):
         pool = Pool()
         pool.int_var("x")
-        lb = Diagram(pool, pool.bool_test(Test("x - 1", ">=")))
-        ub = Diagram(pool, pool.bool_test(Test("x - 10", "<=")))
-        test = Diagram(pool, pool.bool_test(Test("x - 5", "<=")))
+        lb = Diagram(pool, pool.bool_test(LinearTest("x - 1", ">=")))
+        ub = Diagram(pool, pool.bool_test(LinearTest("x - 10", "<=")))
+        test = Diagram(pool, pool.bool_test(LinearTest("x - 5", "<=")))
         term_one = Diagram(pool, pool.terminal("x + 2"))
         term_two = Diagram(pool, pool.terminal("7 - 2 * (x - 5)"))
 

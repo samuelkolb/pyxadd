@@ -3,7 +3,7 @@ import unittest
 from pyxadd.build import Builder
 from pyxadd.diagram import Diagram, Pool
 from pyxadd.operation import Multiplication, Summation
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 from pyxadd.view import export
 from pyxadd.walk import WalkingProfile, ParentsWalker
 
@@ -13,10 +13,10 @@ class TestDiagram(unittest.TestCase):
         pool = Pool()
         pool.int_var("x")
 
-        self.test1 = pool.bool_test(Test("x", ">="))
-        self.test2 = pool.bool_test(Test("x + 2", ">"))
-        self.test3 = pool.bool_test(Test("x + 1", "<="))
-        self.test4 = pool.bool_test(Test("x - 5", "<="))
+        self.test1 = pool.bool_test(LinearTest("x", ">="))
+        self.test2 = pool.bool_test(LinearTest("x + 2", ">"))
+        self.test3 = pool.bool_test(LinearTest("x + 1", "<="))
+        self.test4 = pool.bool_test(LinearTest("x - 5", "<="))
         self.x = pool.terminal("x")
 
         p1 = pool.apply(Multiplication, self.test1, self.test4)
@@ -40,8 +40,8 @@ class TestDiagram(unittest.TestCase):
         two = pool.terminal("2")
         x = pool.terminal("x")
 
-        test1 = pool.bool_test(Test("x", ">="))
-        test2 = pool.apply(Multiplication, pool.bool_test(Test("x - 5", "<=")), x)
+        test1 = pool.bool_test(LinearTest("x", ">="))
+        test2 = pool.apply(Multiplication, pool.bool_test(LinearTest("x - 5", "<=")), x)
 
         product = pool.apply(Multiplication, test1, test2)
         result = Diagram(pool, pool.apply(Multiplication, product, two))
@@ -56,7 +56,7 @@ class TestDiagram(unittest.TestCase):
     def test_not(self):
         pool = Pool()
         pool.int_var("x")
-        dd_true = Diagram(pool, pool.bool_test(Test("x", ">=")))
+        dd_true = Diagram(pool, pool.bool_test(LinearTest("x", ">=")))
         dd_false = Diagram(pool, pool.invert(dd_true.root_node.node_id))
 
         for i in range(-5, 6):

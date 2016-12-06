@@ -4,7 +4,7 @@ import sympy
 
 from pyxadd.diagram import Diagram, DefaultCache, Pool
 from pyxadd.operation import Summation, Multiplication
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 from pyxadd.variables import VariableFinder
 from pyxadd.walk import DownUpWalker
 
@@ -26,8 +26,12 @@ class SummationCache(DefaultCache):
             expression = pool.get_node(node_id).expression
             variables = {str(v): v for v in expression.free_symbols}
             v = variables[variable] if variable in variables else sympy.S(variable)
+            # TODO add caching again
             try:
-                result = sympy.simplify(sympy.Sum(expression, (v, self.lb, self.ub)).doit())
+                # expression = sympy.expand(expression)
+                # print("Value at r=10 is {}".format(expression.subs({"r": 10})))
+                result = sympy.Sum(expression, (v, self.lb, self.ub)).doit()
+                # print("Symbolic sum of {} = {}".format(expression, result))
                 return lambda lb, ub: result.subs({self.lb: lb, self.ub: ub})
             except sympy.BasePolynomialError as e:
                 print("Problem trying to sum the expression {} for variable {}"
@@ -114,8 +118,8 @@ class SummationWalker(DownUpWalker):
         if terminal_node.expression == 0 or lb_natural > ub_natural:
             return pool.zero_id
 
-        lower_bounds = [lb_natural]
-        upper_bounds = [ub_natural]
+        lower_bounds = []
+        upper_bounds = []
         for bound in bounds:
             # [var] [operator] [expression]
             operator, expression = bound
@@ -126,6 +130,14 @@ class SummationWalker(DownUpWalker):
                 upper_bounds.append(expression)
             else:
                 raise RuntimeError("Cannot handle operator {}".format(operator))
+
+        lower_bounds.append(lb_natural)
+        upper_bounds.append(ub_natural)
+
+        print("Expression: {}".format(terminal_node.expression))
+        print("Lower bounds: {}".format(lower_bounds))
+        print("Upper bounds: {}".format(upper_bounds))
+        print()
 
         return self._build_terminal(terminal_node, 0, 1, lower_bounds, 0, 1, upper_bounds)
 
@@ -142,10 +154,12 @@ class SummationWalker(DownUpWalker):
                 import time
                 # result = sympy.nsimplify(sympy.Sum(sympy.nsimplify(expression), (self.variable, lb, ub)).doit())
                 node_id = terminal_node.node_id
+                # hit = pool.is_cached(SummationCache.name, (self.variable, node_id))
                 f = pool.get_cached(SummationCache.name, (self.variable, node_id))
                 result = f(lb, ub)
+                # print("Leaf sum:", ("cached" if hit else "not cached"), (lb, ub), result)
                 # TODO: simplify result numerically??
-                bound_integrity_check = Test(lb, "<=", ub)
+                bound_integrity_check = LinearTest(lb, "<=", ub)
                 if bound_integrity_check.operator.is_tautology():
                     return pool.terminal(result) if bound_integrity_check.evaluate({}) else pool.zero_id
                 else:
@@ -153,12 +167,14 @@ class SummationWalker(DownUpWalker):
                     return pool.apply(Multiplication, node_id, pool.terminal(result))
             else:
                 # Add upper bound check
-                test = Test(upper_bounds[ub_i] - upper_bounds[ub_c], "<=")
+                test = LinearTest(upper_bounds[ub_i], "<=", upper_bounds[ub_c])
                 child_true = self._build_terminal(terminal_node, lb_i, lb_c, lower_bounds, ub_i, ub_c + 1, upper_bounds)
                 child_false = self._build_terminal(terminal_node, lb_i, lb_c, lower_bounds, ub_c, ub_c + 1, upper_bounds)
+
+        # FIXME TRANSITIVITY
         else:
             # Add lower bound check
-            test = Test(lower_bounds[lb_i] - lower_bounds[lb_c], ">=")
+            test = LinearTest(lower_bounds[lb_i], ">=", lower_bounds[lb_c])
             child_true = self._build_terminal(terminal_node, lb_i, lb_c + 1, lower_bounds, ub_i, ub_c, upper_bounds)
             child_false = self._build_terminal(terminal_node, lb_c, lb_c + 1, lower_bounds, ub_i, ub_c, upper_bounds)
 

@@ -1,5 +1,5 @@
 from pyxadd.diagram import Diagram, Pool
-from pyxadd.test import Test
+from pyxadd.test import LinearTest, BinaryTest
 
 
 class Builder(object):
@@ -30,8 +30,14 @@ class Builder(object):
     def exp(self, exp):
         return self.terminal(exp)
 
-    def test(self, lhs, symbol, rhs):
-        return Diagram(self.pool, self.pool.internal(Test(lhs, symbol, rhs), self.pool.one_id, self.pool.zero_id))
+    def test(self, lhs, symbol=None, rhs=None):
+        if symbol is None and rhs is None:
+            if self.pool.get_var_type(lhs) != "bool":
+                raise RuntimeError("'{}' is not a variable of type 'bool'".format(lhs))
+            test = BinaryTest(lhs)
+        else:
+            test = LinearTest(lhs, symbol, rhs)
+        return Diagram(self.pool, self.pool.internal(test, self.pool.one_id, self.pool.zero_id))
 
     def limit(self, var, lb, ub):
         diagram = self.terminal(1)
@@ -41,10 +47,13 @@ class Builder(object):
             diagram &= self.test(var, "<=", ub)
         return diagram
 
-    def ite(self, if_diagram, then_diagram, else_diagram):
-        assert isinstance(if_diagram, Diagram)
-        assert isinstance(then_diagram, Diagram)
-        assert isinstance(else_diagram, Diagram)
+    def ite(self, if_diagram, then_diagram, else_diagram=None):
+        if not isinstance(if_diagram, Diagram):
+            if_diagram = self.test(if_diagram)
+        if not isinstance(then_diagram, Diagram):
+            then_diagram = self.terminal(then_diagram)
+        if not isinstance(else_diagram, Diagram):
+            else_diagram = self.terminal(else_diagram)
         assert if_diagram.pool == then_diagram.pool == else_diagram.pool == self.pool
 
         return if_diagram * then_diagram + (~if_diagram) * else_diagram

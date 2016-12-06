@@ -7,7 +7,7 @@ from pyxadd.diagram import Diagram, Pool
 from pyxadd.matrix_vector import SummationWalker, matrix_multiply
 from pyxadd.partial import PartialWalker
 from pyxadd.reduce import SmtReduce, LinearReduction
-from pyxadd.test import Test
+from pyxadd.test import LinearTest
 from pyxadd.view import export
 
 
@@ -94,14 +94,14 @@ class TestMatrixVector(unittest.TestCase):
         three = Diagram(pool, pool.terminal("3"))
         four = Diagram(pool, pool.terminal("4"))
 
-        test11 = Diagram(pool, pool.bool_test(Test("x1", ">=")))
-        test12 = Diagram(pool, pool.bool_test(Test("x1 - 1", "<=")))
-        test13 = Diagram(pool, pool.bool_test(Test("x1 - 3", ">")))
+        test11 = Diagram(pool, pool.bool_test(LinearTest("x1", ">=")))
+        test12 = Diagram(pool, pool.bool_test(LinearTest("x1 - 1", "<=")))
+        test13 = Diagram(pool, pool.bool_test(LinearTest("x1 - 3", ">")))
 
-        test21 = Diagram(pool, pool.bool_test(Test("x2", ">=")))
-        test22 = Diagram(pool, pool.bool_test(Test("x2", ">")))
-        test23 = Diagram(pool, pool.bool_test(Test("x2 - 1", ">")))
-        test24 = Diagram(pool, pool.bool_test(Test("x2 - 2", ">")))
+        test21 = Diagram(pool, pool.bool_test(LinearTest("x2", ">=")))
+        test22 = Diagram(pool, pool.bool_test(LinearTest("x2", ">")))
+        test23 = Diagram(pool, pool.bool_test(LinearTest("x2 - 1", ">")))
+        test24 = Diagram(pool, pool.bool_test(LinearTest("x2 - 2", ">")))
 
         x_twos = test12 * ~test23 * x_two
         twos = test12 * test23 * two
