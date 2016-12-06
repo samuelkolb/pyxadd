@@ -1,7 +1,6 @@
 from pyxadd.build import Builder
 from pyxadd.diagram import Pool
 from pyxadd.matrix.matrix import Matrix
-from pyxadd.view import export
 
 lb = 1
 ub = 10
@@ -35,7 +34,6 @@ def solve(A, b, w, m=1000, delta=10**-3):
         x = x.reduce()
         x.export("visual/richardson/x{}.dot".format(i))
         print("X: ", [x.evaluate({"r": i}) for i in range(lb, ub + 1)])
-        exit()
 
 pool = Pool()
 build = Builder(pool)
@@ -53,7 +51,7 @@ A_db = bounds & (build.test("r", ">", lb + (ub - lb) / 2) & build.test("c", "<="
 A = Matrix(A_d * build.terminal(3) + A_db, [("r", lb, ub)], [("c", lb, ub)], auto_reduce=False)
 # TODO WHAT IS THAT 7
 A.print_ground()
-A.reduce()
+A = A.reduce()
 A.export("visual/richardson/A.dot")
 
 b_d = build.limit("r", lb, ub) * build.exp(10)
