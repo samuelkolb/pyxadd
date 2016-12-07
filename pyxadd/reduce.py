@@ -177,3 +177,32 @@ class SmtReduce(Reducer):
         except ValueError:
             pass
         raise RuntimeError("Could not parse {} of type {}".format(expression, type(expression)))
+
+
+class SimpleBoundReducer(Reducer):
+    def reduce(self, node_id, variables=None):
+        pass
+
+    def reduce(self, node_id, bounds):
+        """
+        :param int node_id:
+        :param dict bounds:
+        :return:
+        """
+        node = self.pool.get_node(node_id)
+        if isinstance(node, TerminalNode):
+            # Test if singular bounds
+            expression = node.expression
+            values = dict()
+            for symbol in expression.free_symbols:
+                lb, ub = bounds.get(str(symbol), (None, None))
+                if lb is not None and ub is not None and lb == ub:
+                    values[symbol] = lb
+                else:
+                    break
+            if len(values) == len(expression.free_symbols):
+                return self.pool.terminal(expression.subs(values))
+            else:
+                return node_id
+        elif isinstance(node, InternalNode):
+            pass  # TODO Implement
