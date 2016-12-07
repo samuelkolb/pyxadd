@@ -46,6 +46,35 @@ class SummationCache(DefaultCache):
             pool.add_cache(cls.name, cls())
 
 
+def filter_bounds(bounds, lower):
+    """
+    Filters the given bounds to eliminate redundant ones
+    :param List bounds: The bounds to filter
+    :param bool lower: True iff the bounds are lower bounds, False otherwise
+    :return List: The filtered list of bounds
+    """
+    collected_bounds = []
+
+    for bound_1 in bounds:
+        if len(collected_bounds) == 0:
+            # No bounds so far
+            collected_bounds = [bound_1]
+        else:
+            next_collected_bounds = []
+            for bound_2 in collected_bounds:
+                diff = bound_1 - bound_2
+                if len(diff.free_symbols) == 0:
+                    if lower:
+                        next_collected_bounds.append(bound_1 if diff >= 0 else bound_2)
+                    else:
+                        next_collected_bounds.append(bound_1 if diff <= 0 else bound_2)
+                else:
+                    next_collected_bounds.append(bound_1)
+                    next_collected_bounds.append(bound_2)
+            collected_bounds = next_collected_bounds
+    return collected_bounds
+
+
 class SummationWalker(DownUpWalker):
     def __init__(self, diagram, variable):
         DownUpWalker.__init__(self, diagram)
@@ -131,12 +160,20 @@ class SummationWalker(DownUpWalker):
             else:
                 raise RuntimeError("Cannot handle operator {}".format(operator))
 
+        print("Expression: {}".format(terminal_node.expression))
+
+        print("Lower bounds: {}".format(lower_bounds))
+        print("Upper bounds: {}".format(upper_bounds))
+
+        lower_bounds = filter_bounds(lower_bounds, lower=True)
+        upper_bounds = filter_bounds(upper_bounds, lower=False)
+
         lower_bounds.append(lb_natural)
         upper_bounds.append(ub_natural)
 
-        print("Expression: {}".format(terminal_node.expression))
         print("Lower bounds: {}".format(lower_bounds))
         print("Upper bounds: {}".format(upper_bounds))
+
         print()
 
         return self._build_terminal(terminal_node, 0, 1, lower_bounds, 0, 1, upper_bounds)
