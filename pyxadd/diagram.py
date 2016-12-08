@@ -210,6 +210,8 @@ class Pool:
         check_node_id(child_false, "Child (false)")
         if child_true == child_false:
             return child_true
+
+        test, child_true, child_false = test.to_canonical(child_true, child_false)
         test_id = self._add_test(test)
         key = (test_id, child_true, child_false)
         node_id = self._internal_map.get(key, None)

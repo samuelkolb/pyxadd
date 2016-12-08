@@ -181,7 +181,7 @@ class GreaterThan(Operator):
         return self
 
     def weak(self):
-        return GreaterThanEqual(self.lhs, self.rhs  + 1)
+        return GreaterThanEqual(self.lhs, self.rhs + 1)
 
     def __invert__(self):
         return LessThanEqual(self.lhs, self.rhs)
@@ -271,6 +271,9 @@ class Test(object):
     def rename(self, translation):
         raise NotImplementedError()
 
+    def to_canonical(self, child_true, child_false):
+        raise NotImplementedError()
+
     def __repr__(self):
         raise NotImplementedError()
 
@@ -291,12 +294,19 @@ class LinearTest(Test):
             if not isinstance(rhs, sympy.Basic):
                 rhs = sympy.sympify(rhs)
             operator = Operator.compile(lhs, symbol, rhs)
-        self._operator = operator.to_canonical()
-        self._negated = ~self._operator
+
+        self._operator = operator
+        self._negated = None
 
     @property
     def operator(self):
         return self._operator
+
+    @property
+    def _negated_operator(self):
+        if self._negated is None:
+            self._negated = ~self.operator
+        return self._negated
 
     @property
     def variables(self):
@@ -308,13 +318,20 @@ class LinearTest(Test):
         if test:
             return self.operator.update_bounds(var, lb, ub)
         else:
-            return self._negated.update_bounds(var, lb, ub)
+            return self._negated_operator.update_bounds(var, lb, ub)
 
     def evaluate(self, assignment):
         return self.operator.evaluate(assignment)
 
     def rename(self, translation):
         return LinearTest(self.operator.rename(translation))
+
+    def to_canonical(self, child_true, child_false):
+        if isinstance(self.operator, (GreaterThan, LessThan)):
+            return LinearTest(self._negated_operator.to_canonical()), child_false, child_true
+        else:
+            self._operator = self.operator.to_canonical()
+            return self, child_true, child_false
 
     def __repr__(self):
         return str(self.operator)
@@ -345,6 +362,9 @@ class BinaryTest(Test):
         if self.var in translation:
             return BinaryTest(translation[self.var])
         return self
+
+    def to_canonical(self, child_true, child_false):
+        return self, child_true, child_false
 
     def __repr__(self):
         return str(self.var)
