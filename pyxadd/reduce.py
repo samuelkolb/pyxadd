@@ -1,10 +1,17 @@
+from __future__ import print_function
+
 import sympy
 import pysmt.shortcuts as smt
 from pysmt.typing import INT
 
 from pyxadd.diagram import TerminalNode, InternalNode, Diagram
+from pyxadd.test import LinearTest
 from pyxadd.variables import VariableFinder
 
+"""
+Reducers can exploit the fact that they do not change the relative ordering of tests.
+Therefore, they can work "in place" and do not need to recontruct the diagram using multiplication and summation.
+"""
 
 class Reducer(object):
     def __init__(self, pool):
@@ -114,7 +121,7 @@ class SmtReduce(Reducer):
             variables = self._get_variables(node_id)
         self.variables = variables
         with smt.Solver() as solver:
-            return self._reduce(self.pool.get_node(node_id), solver)
+            return self._reduce(self.pool.get_node(node_id), solver).node_id
 
     def _reduce(self, node, solver):
         if isinstance(node, TerminalNode):
@@ -177,3 +184,69 @@ class SmtReduce(Reducer):
         except ValueError:
             pass
         raise RuntimeError("Could not parse {} of type {}".format(expression, type(expression)))
+
+
+class SimpleBoundReducer(Reducer):
+    def __init__(self, pool, ignore_multiple_variables=True):
+        Reducer.__init__(self, pool)
+        self._ignore_multiple_variables = ignore_multiple_variables
+
+    def reduce(self, node_id, variables=None):
+        return self._reduce(node_id, dict())
+
+    def _reduce(self, node_id, bounds):
+        """
+        :param int node_id:
+        :param dict bounds:
+        :return:
+        """
+        node = self.pool.get_node(node_id)
+        if isinstance(node, TerminalNode):
+            # Test if singular bounds
+            expression = node.expression
+            values = dict()
+            for symbol in expression.free_symbols:
+                lb, ub = bounds.get(str(symbol), (None, None))
+                if lb is not None and ub is not None and lb == ub:
+                    values[symbol] = lb
+                else:
+                    break
+            if len(values) == len(expression.free_symbols):
+                return self.pool.terminal(expression.subs(values))
+            else:
+                return node_id
+
+        elif isinstance(node, InternalNode):
+            # Test if there are infeasible paths
+            test = node.test
+            if isinstance(test, LinearTest) and len(test.variables) == 1:
+                # Linear one variable test
+                var, = test.variables
+                lb, ub = bounds.get(var, (None, None))
+                lb_true, ub_true = test.update_bounds(var, lb, ub, test=True)
+                if None not in (lb_true, ub_true) and lb_true > ub_true:
+                    # Test is redundant, true branch is impossible, continue with false branch
+                    return self._reduce(node.child_false, bounds)
+
+                lb_false, ub_false = test.update_bounds(var, lb, ub, test=False)
+                if None not in (lb_false, ub_false) and lb_false > ub_false:
+                    # Test is redundant, false branch is impossible, continue with true branch
+                    return self._reduce(node.child_true, bounds)
+
+                true_bounds = dict(bounds)
+                true_bounds[var] = lb_true, ub_true
+
+                false_bounds = dict(bounds)
+                false_bounds[var] = lb_false, ub_false
+
+                true_reduced = self._reduce(node.child_true, true_bounds)
+                false_reduced = self._reduce(node.child_false, false_bounds)
+                return self.pool.internal(node.test, true_reduced, false_reduced)
+            else:
+                # Non linear or multiple variable test
+                if not self._ignore_multiple_variables and isinstance(test, LinearTest):
+                    raise RuntimeError("Multiple variables not allowed ({})".format(test))
+                return self.pool.internal(node.test, bounds, bounds)
+
+        else:
+            raise RuntimeError("Unexpected node {} of type {}".format(node, type(node)))

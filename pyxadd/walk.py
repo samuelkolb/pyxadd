@@ -311,6 +311,7 @@ def walk_leaves(f, root, pool=None):
         node = pool.get_node(profile.next())
         if isinstance(node, TerminalNode):
             f(pool, node)
+    profile.reset()
 
 
 def map_leaves(f, root, pool=None):
