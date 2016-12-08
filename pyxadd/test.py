@@ -66,6 +66,8 @@ class Operator:
             raise RuntimeError("Test does not have exactly one variable (it has {})".format(self.variables))
         rewritten = self.times(1 / self.coefficient(var, force=True))
         assert isinstance(rewritten, Operator)
+        lb = -sympy.oo if lb is None else lb
+        ub = sympy.oo if ub is None else ub
         return rewritten._update_bounds(lb, ub)
 
     def _update_bounds(self, lb, ub):
