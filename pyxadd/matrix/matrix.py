@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from pyxadd.rename import rename
-from pyxadd.reduce import LinearReduction
+from pyxadd.reduce import LinearReduction, SimpleBoundReducer
 
 
 class Matrix(object):
@@ -15,6 +15,7 @@ class Matrix(object):
         self._width = width
         self._auto_reduce = auto_reduce
         self._reducer = LinearReduction(self.diagram.pool)
+        self._simple_reducer = SimpleBoundReducer(self.diagram.pool)
 
     @property
     def diagram(self):
@@ -139,7 +140,7 @@ class Matrix(object):
 
     def _reduce_diagram(self, diagram, reducer=None):
         if reducer is None:
-            reducer = self._reducer
+            reducer = self._reducer if len(self._row_vars + self._col_vars) > 1 else self._simple_reducer
 
         variables = [t[0] for t in self._row_vars + self._col_vars]
         print(variables)
