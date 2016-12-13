@@ -214,7 +214,7 @@ class BottomUpWalker(Walker):
     def __init__(self, diagram, profile=None):
         Walker.__init__(self, diagram)
         if profile is None:
-            profile = diagram.profile
+            profile = get_profile(diagram)
         self._profile = profile
 
     def visit_terminal(self, terminal_node):
