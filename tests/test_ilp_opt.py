@@ -19,7 +19,6 @@ delta = 10 ** -6
 class TestIlpOpt(unittest.TestCase):
     def test_diagram1(self):
         diagram = build_diagram1()
-        export(diagram, "visual/ilp_opt/d.dot")
         value, assignment = find_optimum(diagram)
         self.assertAlmostEqual(6.0, value, delta=delta)
         self.assertEqual(1, len(assignment))
