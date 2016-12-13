@@ -33,17 +33,17 @@ class TestTransform(unittest.TestCase):
 
         test_d = b.limit("x", 1, 1) * b.exp(5) + b.limit("x", 2, 2) * b.exp(5)
         test_d = pool.diagram(LinearReduction(pool).reduce(test_d.root_node.node_id))
-        export(test_d, "test_d.dot")
+        export(test_d, "visual/transform/test_d.dot")
 
         # Test with profile
         add_profile_cache(pool)
         get_profile(self.diagram)
 
-        export(self.diagram, "to_constant.dot")
+        export(self.diagram, "visual/transform/to_constant.dot")
         constant = to_constant(self.diagram)
         get_profile(constant)
 
-        export(constant, "constant.dot")
+        export(constant, "visual/transform/constant.dot")
 
         def t(_, node):
             self.assertTrue(is_constant(node), msg="{} still contains variables".format(node.expression))

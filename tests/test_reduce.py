@@ -24,11 +24,11 @@ class TestReduce(unittest.TestCase):
         self.diagram = b1 + b2
 
     def test_reduce(self):
-        export(self.diagram, "to_reduce.dot")
+        export(self.diagram, "visual/reduce/to_reduce.dot")
         result = LinearReduction(self.diagram.pool).reduce(self.diagram.root_node.node_id, ["x"])
-        export(Diagram(self.diagram.pool, result), "result.dot")
+        export(Diagram(self.diagram.pool, result), "visual/reduce/result.dot")
 
     def test_smt_reduce(self):
-        export(self.diagram, "to_reduce.dot")
+        export(self.diagram, "visual/reduce/to_reduce.dot")
         result = SmtReduce(self.diagram.pool).reduce(self.diagram.root_node.node_id, ["x"])
-        export(Diagram(self.diagram.pool, result), "result.dot")
+        export(Diagram(self.diagram.pool, result), "visual/reduce/result.dot")
