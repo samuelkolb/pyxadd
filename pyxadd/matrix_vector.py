@@ -160,10 +160,10 @@ class SummationWalker(DownUpWalker):
             else:
                 raise RuntimeError("Cannot handle operator {}".format(operator))
 
-        print("Expression: {}".format(terminal_node.expression))
+        # print("Expression: {}".format(terminal_node.expression))
 
-        print("Lower bounds: {}".format(lower_bounds))
-        print("Upper bounds: {}".format(upper_bounds))
+        # print("Lower bounds: {}".format(lower_bounds))
+        # print("Upper bounds: {}".format(upper_bounds))
 
         lower_bounds = filter_bounds(lower_bounds, lower=True)
         upper_bounds = filter_bounds(upper_bounds, lower=False)
@@ -171,10 +171,10 @@ class SummationWalker(DownUpWalker):
         lower_bounds.append(lb_natural)
         upper_bounds.append(ub_natural)
 
-        print("Lower bounds: {}".format(lower_bounds))
-        print("Upper bounds: {}".format(upper_bounds))
+        # print("Lower bounds: {}".format(lower_bounds))
+        # print("Upper bounds: {}".format(upper_bounds))
 
-        print()
+        # print()
 
         return self._build_terminal(terminal_node, 0, 1, lower_bounds, 0, 1, upper_bounds)
 
