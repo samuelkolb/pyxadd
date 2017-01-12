@@ -143,7 +143,7 @@ class Matrix(object):
             reducer = self._reducer if len(self._row_vars + self._col_vars) > 1 else self._simple_reducer
 
         variables = [t[0] for t in self._row_vars + self._col_vars]
-        print(variables)
+        # print(variables)
         return diagram.pool.diagram(reducer.reduce(diagram.root_id, variables))
 
 
