@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+from pyxadd.leaf_transform import transform_leaves
+from pyxadd.matrix_vector import sum_out
 from pyxadd.rename import rename
 from pyxadd.reduce import LinearReduction, SimpleBoundReducer
 
@@ -144,10 +146,21 @@ class Matrix(object):
         for row in results:
             print(*row, sep="  ")
 
-    def to_ground(self):
+    def to_ground(self, row_limit=None, column_limit=None):
         matrix = []
+        row_index = 0
         for row_assignment in assignments(self._row_vars):
-            matrix.append([self.evaluate(a) for a in assignments(self._col_vars, fixed=row_assignment)])
+            if row_limit is not None and row_index >= row_limit:
+                break
+            row = []
+            column_index = 0
+            for a in assignments(self._col_vars, fixed=row_assignment):
+                if column_limit is not None and column_index >= column_limit:
+                    break
+                row.append(self.evaluate(a))
+                column_index += 1
+            matrix.append(row)
+            row_index += 1
         return matrix
 
     def export(self, name):
@@ -155,6 +168,24 @@ class Matrix(object):
         if not name.endswith(".dot"):
             name += ".dot"
         export(self.diagram, name)
+
+    def project(self, on_rows):
+        """
+        :param bool on_rows: If true, project on rows, otherwise on columns
+        :return Matrix: A matrix corresponding to the projection
+        """
+        to_sum_out = self.column_variables if on_rows else self.row_variables
+        projected_id = sum_out(self.diagram.pool, self.diagram.root_id, [v[0] for v in to_sum_out])
+        new_row_vars = self.row_variables if on_rows else []
+        new_col_vars = self.column_variables if not on_rows else []
+        projected_diagram = self.diagram.pool.diagram(projected_id)
+        return Matrix(projected_diagram, new_row_vars, new_col_vars, auto_reduce=self._auto_reduce)
+
+    def transform_leaves(self, f):
+        transformed_id = transform_leaves(f, self.diagram)
+        diagram = self.diagram.pool.diagram(transformed_id)
+        return Matrix(diagram, self.row_variables, self.column_variables, height=self.height, width=self.width,
+                      auto_reduce=self._auto_reduce)
 
     def _optional_reduce(self, diagram):
         if self._auto_reduce is not False:
