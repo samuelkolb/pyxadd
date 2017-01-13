@@ -136,6 +136,12 @@ class Matrix(object):
         for row in results:
             print(*row, sep="  ")
 
+    def to_ground(self):
+        matrix = []
+        for row_assignment in assignments(self._row_vars):
+            matrix.append([str(self.evaluate(a)) for a in assignments(self._col_vars, fixed=row_assignment)])
+        return matrix
+
     def export(self, name):
         from pyxadd.view import export
         if not name.endswith(".dot"):
