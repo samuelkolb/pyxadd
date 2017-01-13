@@ -26,7 +26,11 @@ def page_rank(matrix_a, variables=None, damping_factor=0.85, initial_vector=None
     names = [t[0] for t in variables]
 
     if initial_vector is None:
-        raise RuntimeError("Initial vector computation not yet implemented.")
+        initial_diagram = build.exp(1.0 / matrix_a.height)
+        for name, lb, ub in variables:
+            initial_diagram = initial_diagram * build.limit("r_" + name, lb, ub)
+        row_vars = [("r_" + name, lb, ub) for name, lb, ub in variables]
+        initial_vector = Matrix(initial_diagram, row_vars, [])
 
     if damping_factor < 0 or damping_factor > 1:
         raise RuntimeError("Damping factor has to be in the interval [0, 1].")
@@ -69,7 +73,7 @@ def page_rank(matrix_a, variables=None, damping_factor=0.85, initial_vector=None
         # Compute next iteration
         new_vector = matrix_a * new_vector
 
-        # Transpose vector and rename column variables to row variables
+        # Rename column variables to row variables
         new_vector = new_vector.rename({"r_" + var: var for var in names}).reduce()
 
         # Print for debugging
@@ -93,12 +97,12 @@ def example1():
     c = ("c_i", 1, 4)
     i = ("i", 1, 4)
     matrix = Matrix(diagram, [r], [c], height=4, width=4).reduce()
-    vector = Matrix(build.limit("r_i", 1, 4) * build.exp("1/4"), [r], [])
+    # vector = Matrix(build.limit("r_i", 1, 4) * build.exp("1/4"), [r], [])
 
     matrix.print_ground()
     matrix.export("visual/pagerank/matrix.dot")
-    vector.print_ground()
-    result = page_rank(matrix, variables=[i], initial_vector=vector, iterations=100)
+    # vector.print_ground()
+    result = page_rank(matrix, variables=[i], iterations=100)
     result.export("visual/pagerank/result.dot")
     result.print_ground()
 
@@ -119,9 +123,9 @@ def numerical_example1():
         print(new_vector)
 
 
-start = time.time()
-example1()
-print(time.time() - start)
+# start = time.time()
+# example1()
+# print(time.time() - start)
 
 
 def example2():
