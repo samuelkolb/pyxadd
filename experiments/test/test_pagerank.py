@@ -44,13 +44,15 @@ def pagerank_ground(matrix_a, damping_factor, iterations, delta, initial_vector=
     print("No solution after {} iterations".format(iterations))
     return new_vector
 
+
 class TestPagerank(unittest.TestCase):
     def setUp(self):
         self.print_time = False
         self.delta = 10 ** -3
         self.damping_factor = 0.85
 
-    def build_example1(self):
+    @staticmethod
+    def build_example1():
         pool = Pool()
         build = Builder(pool)
         variables = [("i", 1, 4)]
@@ -75,6 +77,7 @@ class TestPagerank(unittest.TestCase):
         matrix = Matrix(diagram, row_variables, column_variables).reduce()
         pagerank.page_rank(matrix, variables, damping_factor=damping_factor, iterations=iterations, delta=self.delta)
 
-        ground_matrix = matrix.to_ground()
+        ground_matrix = numpy.matrix(matrix.to_ground())
+        print(ground_matrix)
         pagerank_ground(ground_matrix, damping_factor=damping_factor, iterations=iterations, delta=self.delta)
 
