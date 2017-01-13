@@ -61,8 +61,8 @@ class TestPagerank(unittest.TestCase):
         column3 = (build.limit("c_i", 3, 3) & build.limit("r_i", 1, 1)) * build.exp("1")
         column4 = (build.limit("c_i", 4, 4) & (build.limit("r_i", 1, 1) | build.limit("r_i", 3, 3))) * build.exp("1/2")
         diagram = limits * (column1 + column2 + column3 + column4)
-        row_variables = [("r_" + name, lb, ub) for name, ub, lb in variables]
-        column_variables = [("c_" + name, lb, ub) for name, ub, lb in variables]
+        row_variables = [("r_" + name, lb, ub) for name, lb, ub in variables]
+        column_variables = [("c_" + name, lb, ub) for name, lb, ub in variables]
         matrix = Matrix(diagram, row_variables, column_variables).reduce()
         pagerank.page_rank(matrix, variables=variables, iterations=100)
 
