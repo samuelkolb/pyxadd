@@ -39,8 +39,10 @@ class Matrix(object):
 
     def __add__(self, other):
         assert isinstance(other, Matrix)
-        assert self._row_vars == other._row_vars
-        assert self._col_vars == other._col_vars
+        if self._row_vars != other._row_vars:
+            raise RuntimeError("Mismatch between row variables: {} vs {}".format(self._row_vars, other._row_vars))
+        if self._col_vars != other._col_vars:
+            raise RuntimeError("Mismatch between row variables: {} vs {}".format(self._col_vars, other._col_vars))
 
         diagram = self.diagram + other.diagram
         diagram = self._optional_reduce(diagram)
