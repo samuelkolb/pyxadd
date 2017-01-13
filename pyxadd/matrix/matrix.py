@@ -139,7 +139,7 @@ class Matrix(object):
     def to_ground(self):
         matrix = []
         for row_assignment in assignments(self._row_vars):
-            matrix.append([str(self.evaluate(a)) for a in assignments(self._col_vars, fixed=row_assignment)])
+            matrix.append([self.evaluate(a) for a in assignments(self._col_vars, fixed=row_assignment)])
         return matrix
 
     def export(self, name):
