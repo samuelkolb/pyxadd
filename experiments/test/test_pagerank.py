@@ -71,10 +71,10 @@ class TestPagerank(unittest.TestCase):
         row_variables = [("r_" + name, lb, ub) for name, lb, ub in variables]
         column_variables = [("c_" + name, lb, ub) for name, lb, ub in variables]
         matrix = Matrix(diagram, row_variables, column_variables).reduce()
-        result_xadd, iterations_xadd = pagerank.page_rank(matrix, variables, damping_factor=damping_factor,
-                                                          iterations=iterations, delta=self.delta)
-
         ground_matrix = numpy.matrix(matrix.to_ground())
+        matrix = pagerank.dampen(matrix, damping_factor=damping_factor)
+        result_xadd, iterations_xadd = pagerank.page_rank(matrix, variables, iterations=iterations, delta=self.delta)
+
         result_ground, iterations_ground = pagerank_ground(ground_matrix, damping_factor=damping_factor,
                                                            iterations=iterations, delta=self.delta)
         difference = numpy.matrix(result_xadd.to_ground()) - result_ground
