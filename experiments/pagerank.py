@@ -5,6 +5,35 @@ from pyxadd.diagram import Pool
 from pyxadd.matrix.matrix import Matrix
 
 
+def dampen(matrix_a, damping_factor, reduce_result=True):
+    """
+    :param Matrix matrix_a: The matrix to dampen
+    :param float damping_factor: The dampening factor
+    :param reduce_result: True if the dampened matrix should be reduced (default: True)
+    :return Matrix: The dampened matrix
+    """
+    build = Builder(matrix_a.diagram.pool)
+
+    if damping_factor < 0 or damping_factor > 1:
+        raise RuntimeError("Damping factor has to be in the interval [0, 1].")
+
+    if damping_factor < 1:
+        ones = build.exp(1.0 / matrix_a.height)
+        for name, lb, ub in matrix_a.row_variables:
+            ones = ones * build.limit("r_" + name, lb, ub)
+        for name, lb, ub in matrix_a.column_variables:
+            ones = ones * build.limit("c_" + name, lb, ub)
+        matrix_ones = Matrix(ones, matrix_a.row_variables, matrix_a.column_variables)
+        updated_a = damping_factor * matrix_a + (1 - damping_factor) * matrix_ones
+        if reduce_result:
+            assert isinstance(updated_a, Matrix)
+            updated_a = updated_a.reduce()
+        return updated_a
+    else:
+        return matrix_a
+
+
+
 def page_rank(matrix_a, variables=None, damping_factor=0.85, initial_vector=None, iterations=100, delta=10**-3):
     """
     Computes the pagerank of a matrix.
@@ -40,18 +69,6 @@ def page_rank(matrix_a, variables=None, damping_factor=0.85, initial_vector=None
     previous_vector = None
     new_vector = initial_vector
 
-    if damping_factor < 1:
-        ones = build.exp(1.0 / matrix_a.height)
-        for name, lb, ub in variables:
-            ones = ones * build.limit("r_" + name, lb, ub) * build.limit("c_" + name, lb, ub)
-        row_vars = [("r_" + name, lb, ub) for name, lb, ub in variables]
-        col_vars = [("c_" + name, lb, ub) for name, lb, ub in variables]
-        matrix_ones = Matrix(ones, row_vars, col_vars)
-        updated_a = damping_factor * matrix_a + (1 - damping_factor) * matrix_ones
-        matrix_a = updated_a.reduce()
-        matrix_a.print_ground()
-
-    print()
     matrix_a = matrix_a.rename({"c_" + var: var for var in names})
 
     for i in range(iterations):
@@ -62,10 +79,7 @@ def page_rank(matrix_a, variables=None, damping_factor=0.85, initial_vector=None
 
             # Compare norm of difference with given delta
             if difference_vector.norm() < delta:
-                print("Found solution after {} iterations".format(i))
-                return new_vector
-
-        print("Iteration: {}".format(i + 1))
+                return new_vector, i
 
         # Save previous vector
         previous_vector = new_vector
@@ -76,11 +90,7 @@ def page_rank(matrix_a, variables=None, damping_factor=0.85, initial_vector=None
         # Rename column variables to row variables
         new_vector = new_vector.rename({"r_" + var: var for var in names}).reduce()
 
-        # Print for debugging
-        new_vector.print_ground()
-
-    print("No solution after {} iterations".format(iterations))
-    return new_vector
+    return new_vector, iterations
 
 
 def example1():
