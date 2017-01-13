@@ -18,6 +18,14 @@ class Matrix(object):
         self._simple_reducer = SimpleBoundReducer(self.diagram.pool)
 
     @property
+    def row_variables(self):
+        return self._row_vars
+
+    @property
+    def column_variables(self):
+        return self._col_vars
+
+    @property
     def diagram(self):
         return self._diagram
 
