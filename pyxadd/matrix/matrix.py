@@ -23,10 +23,18 @@ class Matrix(object):
 
     @property
     def width(self):
+        if self._width is None:
+            self._width = 1
+            for _, lb, ub in self._col_vars:
+                self._width *= ub - lb + 1
         return self._width
 
     @property
     def height(self):
+        if self._height is None:
+            self._height = 1
+            for _, lb, ub in self._row_vars:
+                self._height *= ub - lb + 1
         return self._height
 
     def __add__(self, other):
