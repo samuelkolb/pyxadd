@@ -123,22 +123,38 @@ class Matrix(object):
     def transpose(self):
         return Matrix(self.diagram, self._col_vars, self._row_vars, auto_reduce=self._auto_reduce)
 
-    def print_ground(self):
+    def print_ground(self, row_limit=None, column_limit=None):
         results = []
+
+        grounded = self.to_ground(row_limit=row_limit, column_limit=column_limit)
 
         if len(self._col_vars) > 0:
             header = []
             if len(self._row_vars) > 0:
                 header.append("")
-            header += [str(a) for a in assignments(self._col_vars)]
+            labels = []
+            label_index = 0
+            for a in assignments(self._col_vars):
+                if column_limit is not None and label_index >= column_limit:
+                    break
+                labels.append(str(a))
+                label_index += 1
+            header += labels
             results.append(header)
 
+        row_index = 0
         for row_assignment in assignments(self._row_vars):
+            if row_limit is not None and row_index >= row_limit:
+                break
             row = []
             if len(self._row_vars) > 0:
                 row.append(str(row_assignment))
-            row += [str(self.evaluate(a)) for a in assignments(self._col_vars, fixed=row_assignment)]
+            row_values = []
+            for entry in grounded[row_index]:
+                row_values.append(str(entry))
+            row += row_values
             results.append(row)
+            row_index += 1
 
         padding = max(max(len(entry) for entry in row) for row in results)
         results = [[entry.rjust(padding) for entry in row] for row in results]

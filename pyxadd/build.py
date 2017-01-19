@@ -3,7 +3,9 @@ from pyxadd.test import LinearTest, BinaryTest
 
 
 class Builder(object):
-    def __init__(self, pool):
+    def __init__(self, pool=None):
+        if pool is None:
+            pool = Pool()
         assert isinstance(pool, Pool)
         self._pool = pool
 
