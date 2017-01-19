@@ -5,6 +5,12 @@ from pyxadd.diagram import Pool
 from pyxadd.matrix.matrix import Matrix
 
 
+def to_stochastic(matrix_a):
+    projected = matrix_a.project(False)
+    inverted = projected.transform_leaves(lambda terminal, diagram: diagram.pool.terminal(1.0 / terminal.expression))
+    return matrix_a.element_product(inverted)
+
+
 def dampen(matrix_a, damping_factor, reduce_result=True):
     """
     :param Matrix matrix_a: The matrix to dampen
@@ -33,7 +39,7 @@ def dampen(matrix_a, damping_factor, reduce_result=True):
         return matrix_a
 
 
-def page_rank(matrix_a, variables=None, initial_vector=None, iterations=100, delta=10**-3):
+def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=100, delta=10 ** -3):
     """
     Computes the pagerank of a matrix.
     By convention, the variables in the matrix are prefixed with r_ if they are used as row variables and c_ if they are
@@ -87,3 +93,9 @@ def page_rank(matrix_a, variables=None, initial_vector=None, iterations=100, del
         new_vector = new_vector.rename({"r_" + var: var for var in names}).reduce()
 
     return new_vector, iterations
+
+
+def pagerank(matrix_a, damping_factor, variables=None, initial_vector=None, iterations=100, delta=10 ** -3):
+    stochastic_a = to_stochastic(matrix_a)
+    dampened_a = dampen(stochastic_a, damping_factor)
+    return power_iteration(dampened_a, variables, initial_vector=initial_vector, iterations=iterations, delta=delta)
