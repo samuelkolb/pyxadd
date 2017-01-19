@@ -11,6 +11,15 @@ from pyxadd.matrix.matrix import Matrix
 
 def pagerank_ground(matrix_a, damping_factor, iterations, delta, initial_vector=None):
     n = matrix_a.shape[0]
+
+    projected = numpy.zeros([n, 1])
+    for i in range(n):
+        projected[i] = sum(matrix_a[:, i])
+
+    for i in range(n):
+        for j in range(n):
+            matrix_a[i, j] = matrix_a[i, j] / projected[i]
+
     if initial_vector is None:
         initial_vector = numpy.matrix([[1.0 / n for _ in range(n)]]).T
 
@@ -49,6 +58,7 @@ class TestPagerank(unittest.TestCase):
 
     @staticmethod
     def build_example1():
+        # http://www.math.cornell.edu/~mec/Winter2009/RalucaRemus/Lecture3/lecture3.html
         pool = Pool()
         build = Builder(pool)
         variables = [("i", 1, 4)]
@@ -67,16 +77,27 @@ class TestPagerank(unittest.TestCase):
         diagram, variables = self.build_example1()
         self._test_compare(diagram, variables, 100, self.damping_factor)
 
+    def test_block_example(self):
+        from experiments import link_prediction
+        matrix, variables = link_prediction.build_block_diagram()
+        self._test_compare(matrix.diagram, variables, 100, self.damping_factor)
+
     def _test_compare(self, diagram, variables, iterations, damping_factor):
         row_variables = [("r_" + name, lb, ub) for name, lb, ub in variables]
         column_variables = [("c_" + name, lb, ub) for name, lb, ub in variables]
         matrix = Matrix(diagram, row_variables, column_variables).reduce()
         ground_matrix = numpy.matrix(matrix.to_ground())
-        matrix = pagerank.dampen(matrix, damping_factor=damping_factor)
-        result_xadd, iterations_xadd = pagerank.page_rank(matrix, variables, iterations=iterations, delta=self.delta)
+        result_xadd, iterations_xadd = pagerank.pagerank(matrix,
+                                                         damping_factor=damping_factor,
+                                                         variables=variables,
+                                                         iterations=iterations,
+                                                         delta=self.delta)
 
-        result_ground, iterations_ground = pagerank_ground(ground_matrix, damping_factor=damping_factor,
-                                                           iterations=iterations, delta=self.delta)
+        result_ground, iterations_ground = pagerank_ground(ground_matrix,
+                                                           damping_factor=damping_factor,
+                                                           iterations=iterations,
+                                                           delta=self.delta)
+
         difference = numpy.matrix(result_xadd.to_ground()) - result_ground
         self.assertTrue(numpy.linalg.norm(difference) < self.delta)
         self.assertEqual(iterations_xadd, iterations_ground)

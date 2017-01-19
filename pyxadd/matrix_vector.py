@@ -194,6 +194,8 @@ class SummationWalker(DownUpWalker):
                 # hit = pool.is_cached(SummationCache.name, (self.variable, node_id))
                 f = pool.get_cached(SummationCache.name, (self.variable, node_id))
                 result = f(lb, ub)
+                if result == sympy.nan:
+                    raise RuntimeError("Result is nan: {} for lb={} and ub={}".format(terminal_node.expression, lb, ub))
                 # print("Leaf sum:", ("cached" if hit else "not cached"), (lb, ub), result)
                 # TODO: simplify result numerically??
                 bound_integrity_check = LinearTest(lb, "<=", ub)

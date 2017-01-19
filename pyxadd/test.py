@@ -104,6 +104,28 @@ class Operator:
     def __repr__(self):
         return "{} {} {}".format(" + ".join("{}{}".format(v, k) for k, v in self.lhs.items()), self.symbol, self.rhs)
 
+    def __str__(self):
+        if self.is_singular() and list(self.lhs.values())[0] < 0:
+            return str(self.flip())
+
+        def print_coefficient(c, v):
+            if c == 1:
+                c = ""
+            elif c == -1:
+                c = "-"
+            elif int(c) == c:
+                c = str(int(c))
+            return "{}{}".format(c, v)
+
+        def print_constant(c):
+            if int(c) == c:
+                c = int(c)
+            return str(c)
+
+        coefficients = " + ".join(print_coefficient(c, v) for v, c in self.lhs.items())
+        constant = print_constant(self.rhs)
+        return "{} {} {}".format(coefficients, self.symbol, constant)
+
     def __hash__(self):
         lhs_tuples = tuple((k, self.lhs[k]) for k in sorted(self.lhs.keys()))
         return hash((lhs_tuples, self.symbol, self.rhs))
