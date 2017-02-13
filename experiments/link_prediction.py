@@ -61,7 +61,7 @@ def learn_decision_tree(examples, labels, options=None):
     return clf
 
 
-def decision_tree_to_xadd(classifier, variables):
+def decision_tree_to_xadd(classifier, variables, discrete=True):
     children_left = classifier.tree_.children_left
     children_right = classifier.tree_.children_right
     feature = classifier.tree_.feature
@@ -89,7 +89,11 @@ def decision_tree_to_xadd(classifier, variables):
             # print("LEAF", node_id, [d.root_node.test for d in path])
             distribution = value[node_id][0, :]
             # path_diagram = build.ite(build.test("i", "<=", 0), distribution[0], distribution[1])
-            path_diagram = build.exp(1 if numpy.argmax(distribution) == 1 else 0)
+            if discrete:
+                constant = 1 if numpy.argmax(distribution) == 1 else 0
+            else:
+                constant = float(distribution[1]) / (distribution[0] + distribution[1])
+            path_diagram = build.exp(constant)
             for test in path:
                 path_diagram *= test
             # export(path_diagram, "visual/link_prediction/node{}.dot".format(node_id))
@@ -114,6 +118,6 @@ def graph_to_training_examples(adjacency, attributes):
     return examples, labels
 
 
-def export_classifier(classifier):
-    with open("visual/link_prediction/tree.dot", 'w') as f:
+def export_classifier(classifier, path="visual/link_prediction/tree.dot"):
+    with open(path, 'w') as f:
         tree.export_graphviz(classifier, out_file=f)
