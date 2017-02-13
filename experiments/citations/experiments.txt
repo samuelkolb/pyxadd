@@ -1,0 +1,18 @@
+# 50000 - 1
+Importing coauthors from coauthors_50000.txt... done (took 0.10s)
+Computing lifted values...
+	Computing attributes... done (took 0.04s)
+	Computing learning examples and labels... done (took 0.11s)
+	Learning decision tree... done (took 0.01s)
+	Exporting decision tree to tree_50000.dot... done (took 0.02s)
+	Converting decision tree to XADD... done (took 0.39s)
+	Exporting diagram to diagram_50000... done (took 0.01s)
+	Computing lifted pagerank... done (took 20.87s)
+	Computing values for given authors... done (took 1.23s)
+ done (took 22.68s)
+Exporting converged diagram to converged_50000... done (took 0.00s)
+Calculating ground pagerank... done (took 2652.45s)
+Exporting ground pagerank to ground_value_50000.txt... done (took 0.08s)
+Importing ground pagerank from ground_value_50000.txt... done (took 0.04s)
+Calculating kendall tau correlation coefficient... done (took 0.01s)
+KT = 0.95845031959
