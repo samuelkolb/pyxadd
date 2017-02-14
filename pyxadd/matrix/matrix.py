@@ -92,18 +92,27 @@ class Matrix(object):
     def __rmul__(self, other):
         return self * other
 
+    def combine_variables(self, vars1, vars2):
+        # SPEEDUP Use set instead of list for more variables
+        result = list(vars1)
+        for var in vars2:
+            if var not in result:
+                result.append(var)
+        return result
+
     def element_product(self, other):
         if isinstance(other, Matrix):
             diagram = self.diagram * other.diagram
             # TODO check row / column variables
-            return Matrix(diagram, self._row_vars + other._row_vars, self._col_vars + other._row_vars,
-                          auto_reduce = (self._auto_reduce and other._auto_reduce))
+            return Matrix(diagram, self.combine_variables(self._row_vars, other._row_vars),
+                          self.combine_variables(self._col_vars, other._col_vars),
+                          auto_reduce=(self._auto_reduce and other._auto_reduce))
         else:
             raise RuntimeError("{} is not a matrix".format(other))
 
-    def norm(self):
+    def norm(self, l_norm=2):
         from pyxadd.norm import norm
-        return norm([t[0] for t in self._row_vars] + [t[0] for t in self._col_vars], self.diagram)
+        return norm([t[0] for t in self._row_vars] + [t[0] for t in self._col_vars], self.diagram, l_norm)
 
     def reduce(self, reducer=None):
         diagram = self._reduce_diagram(self.diagram, reducer)

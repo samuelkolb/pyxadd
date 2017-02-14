@@ -6,9 +6,36 @@ from pyxadd.matrix.matrix import Matrix
 
 
 def to_stochastic(matrix_a):
+    """
+    :param Matrix matrix_a:
+    :return:
+    """
     projected = matrix_a.project(False)
-    inverted = projected.transform_leaves(lambda terminal, diagram: diagram.pool.terminal(1.0 / terminal.expression))
+
+    def indicate(terminal, diagram):
+        return diagram.pool.terminal(1.0 / matrix_a.height if terminal.expression == 0 else 0)
+
+    dangling = projected.transform_leaves(indicate)
+    dangling = Matrix(dangling.diagram, matrix_a.row_variables, matrix_a.column_variables)
+
+    matrix_a = matrix_a + make_constant(matrix_a, 1).element_product(dangling)
+
+    def normalize(terminal, diagram):
+        return diagram.pool.terminal(1.0 / terminal.expression if terminal.expression != 0 else 1.0)
+
+    inverted = projected.transform_leaves(normalize)
     return matrix_a.element_product(inverted)
+
+
+def make_constant(matrix, constant, build=None):
+    if build is None:
+        build = Builder(matrix.diagram.pool)
+    ones = build.exp(constant)  # ones = build.exp(1.0 / matrix.height)
+    for name, lb, ub in matrix.row_variables:
+        ones = ones * build.limit(name, lb, ub)
+    for name, lb, ub in matrix.column_variables:
+        ones = ones * build.limit(name, lb, ub)
+    return Matrix(ones, matrix.row_variables, matrix.column_variables)
 
 
 def dampen(matrix_a, damping_factor, reduce_result=True):
@@ -18,19 +45,12 @@ def dampen(matrix_a, damping_factor, reduce_result=True):
     :param reduce_result: True if the dampened matrix should be reduced (default: True)
     :return Matrix: The dampened matrix
     """
-    build = Builder(matrix_a.diagram.pool)
 
     if damping_factor < 0 or damping_factor > 1:
         raise RuntimeError("Damping factor has to be in the interval [0, 1].")
 
     if damping_factor < 1:
-        ones = build.exp(1.0 / matrix_a.height)
-        for name, lb, ub in matrix_a.row_variables:
-            ones = ones * build.limit(name, lb, ub)
-        for name, lb, ub in matrix_a.column_variables:
-            ones = ones * build.limit(name, lb, ub)
-        matrix_ones = Matrix(ones, matrix_a.row_variables, matrix_a.column_variables)
-        updated_a = damping_factor * matrix_a + (1 - damping_factor) * matrix_ones
+        updated_a = damping_factor * matrix_a + (1 - damping_factor) * make_constant(matrix_a, 1.0 / matrix_a.height)
         if reduce_result:
             assert isinstance(updated_a, Matrix)
             updated_a = updated_a.reduce()
@@ -39,7 +59,7 @@ def dampen(matrix_a, damping_factor, reduce_result=True):
         return matrix_a
 
 
-def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=100, delta=10 ** -3):
+def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=100, delta=10 ** -3, norm=2):
     """
     Computes the pagerank of a matrix.
     By convention, the variables in the matrix are prefixed with r_ if they are used as row variables and c_ if they are
@@ -50,6 +70,7 @@ def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=10
     :param Matrix initial_vector: The initial column vector (if None it is initialized with 1/N, where N is the size of the matrix)
     :param iterations: The maximal number of iterations before the algorithm stops
     :param delta: The threshold when change is considered negligible
+    :param norm: The norm, default^ is 2 (L^2 norm), 1 is also allowed (L^1 norm)
     :return: The page rank vector
     """
 
@@ -80,7 +101,7 @@ def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=10
             difference_vector = new_vector - previous_vector
 
             # Compare norm of difference with given delta
-            if difference_vector.norm() < delta:
+            if difference_vector.norm(norm) < delta:
                 return new_vector, i
 
         # Save previous vector
@@ -95,7 +116,8 @@ def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=10
     return new_vector, iterations
 
 
-def pagerank(matrix_a, damping_factor, variables=None, initial_vector=None, iterations=100, delta=10 ** -3):
+def pagerank(matrix_a, damping_factor, variables=None, initial_vector=None, iterations=100, delta=10 ** -3, norm=2):
     stochastic_a = to_stochastic(matrix_a)
     dampened_a = dampen(stochastic_a, damping_factor)
-    return power_iteration(dampened_a, variables, initial_vector=initial_vector, iterations=iterations, delta=delta)
+    return power_iteration(dampened_a, variables, initial_vector=initial_vector, iterations=iterations, delta=delta,
+                           norm=norm)
