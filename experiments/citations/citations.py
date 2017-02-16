@@ -151,7 +151,7 @@ class AuthorPagerank(object):
             export_classifier(clf, tree_file)
 
         timer.start("Converting decision tree to XADD")
-        xadd = decision_tree_to_xadd(clf, row_variables + column_variables, discrete=True)
+        xadd = decision_tree_to_xadd(clf, row_variables + column_variables, discrete=False)
         for var in variables:
             xadd.pool.add_var(var[0], "int")
         matrix = Matrix(xadd, row_variables, column_variables).reduce()
@@ -324,7 +324,7 @@ def make_histogram(values):
 
 
 def main():
-    size = 10000000
+    size = 500000
     authors_root_file = "authors.txt"
     coauthors_root_file = "coauthors.txt"
     authors_file = "authors_{}.txt".format(size)
