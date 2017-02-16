@@ -91,6 +91,14 @@ class TestDiagram(unittest.TestCase):
         self.assertTrue(zero_term in layers[4], layers[4])
         self.assertTrue(x_term in layers[4], layers[4])
 
+    def test_printing(self):
+        import json
+        encoded = Pool.to_json(self.diagram.pool)
+        representation = json.loads(encoded)
+        reconstructed = Pool.from_json(encoded)
+        re_encoded = Pool.to_json(reconstructed)
+        new_representation = json.loads(re_encoded)
+        self.assertEquals(representation, new_representation)
 
 if __name__ == '__main__':
     unittest.main()

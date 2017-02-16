@@ -1,9 +1,10 @@
 import re
+import warnings
 
 import sympy
 
 from pyxadd.operation import Summation, Multiplication, LogicalOr, LogicalAnd
-from pyxadd.test import LinearTest
+from pyxadd.test import LinearTest, Test
 
 
 def check_node_id(node_id, name="Node id"):
@@ -191,6 +192,11 @@ class Pool:
         return self.vars[str(name)]
 
     def terminal(self, expression, v_type=None):
+        """
+        :type expression: sympy.Basic|str|int
+        :type v_type: None|str
+        :rtype: int
+        """
         if not isinstance(expression, sympy.Basic):
             expression = sympy.sympify(expression)
         if expression in self._expressions:
@@ -206,6 +212,15 @@ class Pool:
         return node_id
 
     def internal(self, test, child_true, child_false, v_type=None):
+        """
+        Creates an internal "test" node and returns its id
+        :type test: Test
+        :type child_true: int
+        :type child_false: int
+        :type v_type: None|str
+        :rtype: int
+        """
+        # type: (Test, int, int, None|str) -> int
         check_node_id(child_true, "Child (true)")
         check_node_id(child_false, "Child (false)")
         if child_true == child_false:
@@ -227,6 +242,12 @@ class Pool:
         return node_id
 
     def bool_test(self, test, v_type=None):
+        """
+        Creates an internal child node with child nodes 1 and 0 for the true and false branch, respectively
+        :type test: Test
+        :type v_type: None|str
+        :rtype: int
+        """
         return self.internal(test, self.one_id, self.zero_id, v_type=v_type)
 
     def _register(self, constructor):
@@ -236,6 +257,12 @@ class Pool:
         return node_id
 
     def apply(self, operation, root1, root2):
+        """
+        :type operation: pyxadd.operation.Operation
+        :type root1: int
+        :type root2: int
+        :rtype: int
+        """
         key = (operation, root1, root2)
         if key in self._apply_cache:
             return self._apply_cache[key]
@@ -280,11 +307,63 @@ class Pool:
         return self._get_test_id(test1) <= self._get_test_id(test2)
 
     def invert(self, node_id):
+        """
+        Performs a logical inversion on the diagram
+        :type node_id: int
+        :rtype: int
+        """
+        warnings.warn("This method is slowish and does not check for non-boolean leaves.", DeprecationWarning)
         minus_one = self.terminal("-1")
         return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
 
     def diagram(self, node_id):
+        """
+        :type node_id: int
+        :rtype: Diagram
+        """
         return self.get_cached("diagram", node_id)
+
+    @staticmethod
+    def to_json(pool):
+        """
+        Serializes this pool object and returns a JSON string representation that contains:
+        1) Variables
+        2) Tests
+        3) Expressions
+        4) Nodes
+        :type pool: Pool
+        :rtype: string
+        """
+        import json
+        representation = {
+            "vars": [(name, kind) for name, kind in pool.vars.items()],
+            "tests": [(Test.export_test(test), test_id) for test, test_id in pool._tests.items()],
+            "expressions": [(str(expression), exp_id) for expression, exp_id in pool._expressions.items()],
+            "nodes": [(key, node_id) for key, node_id in pool._internal_map.items()],
+        }
+        import json
+        return json.dumps(representation)
+
+    @staticmethod
+    def from_json(json_string):
+        import json
+        representation = json.loads(json_string)
+        pool = Pool()
+        for name, kind in representation["vars"]:
+            pool.add_var(name, kind)
+        tests = [(Test.import_test(test_string), test_id) for test_string, test_id in representation["tests"]]
+        tests = [t[0] for t in sorted(tests, key=lambda p: p[1])]
+
+        nodes = representation["nodes"] + representation["expressions"]
+        nodes = [t[0] for t in sorted(nodes, key=lambda p: p[1])]
+
+        for node in nodes:
+            if isinstance(node, list):
+                test_id, high, low = node
+                pool.internal(tests[test_id], high, low)
+            else:
+                pool.terminal(node)
+        return pool
 
 
 class Diagram:
@@ -307,33 +386,53 @@ class Diagram:
 
     @property
     def root_id(self):
+        """
+        Returns the id of the root node of this diagram
+        :rtype: int
+        """
         return self.root_node.node_id
 
     @property
     def pool(self):
+        """
+        Returns the pool of this diagram
+        :rtype: Pool
+        """
         return self._pool
 
     @property
     def profile(self):
+        """
+        Returns the profile of this diagram, creates a profile if none exists
+        :rtype: pyxadd.walk.WalkingProfile
+        """
         from pyxadd.walk import WalkingProfile
         if self._profile is None:
             self._profile = WalkingProfile(self)
         return self._profile
 
     def node(self, node_id):
+        """
+        Returns the node associated with the given node_id in the pool of this diagram
+        :type node_id: int
+        :rtype: Node
+        """
         return self._pool.get_node(node_id)
 
     def evaluate(self, assignment):
         assignment = {str(k): v for k, v in assignment.items()}
         node = self.root_node
 
-        while isinstance(node, InternalNode):
-            if node.test.evaluate(assignment):  # node.test.operator.test(node.test.expression.subs(assignment), 0):
-                node = self.node(node.child_true)
+        while True:
+            if isinstance(node, InternalNode):
+                if node.test.evaluate(assignment):  # node.test.operator.test(node.test.expression.subs(assignment), 0):
+                    node = self.node(node.child_true)
+                else:
+                    node = self.node(node.child_false)
+            elif isinstance(node, TerminalNode):
+                return node.evaluate(assignment)
             else:
-                node = self.node(node.child_false)
-
-        return node.evaluate(assignment)
+                raise RuntimeError("Unexpected node type {} of node {}".format(type(node), node))
 
     def reduce(self, variables=None, method="linear"):
         if method == "linear":

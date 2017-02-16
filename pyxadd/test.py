@@ -1,4 +1,7 @@
 import sympy
+import re
+
+from pyxadd.errors import UnexpectedTypeError
 
 
 class Operator:
@@ -13,7 +16,7 @@ class Operator:
     def __init__(self, symbol, lhs, rhs):
         self._symbol = symbol
         self._lhs = lhs
-        self._rhs = rhs
+        self._rhs = rhs + 0
 
     @property
     def symbol(self):
@@ -102,7 +105,7 @@ class Operator:
         raise NotImplementedError()
 
     def __repr__(self):
-        return "{} {} {}".format(" + ".join("{}{}".format(v, k) for k, v in self.lhs.items()), self.symbol, self.rhs)
+        return "{} {} {}".format(" + ".join("{}*{}".format(v, k) for k, v in self.lhs.items()), self.symbol, self.rhs)
 
     def __str__(self):
         if self.is_singular() and list(self.lhs.values())[0] < 0:
@@ -140,13 +143,12 @@ class Operator:
         :param lhs: The left hand side expression (sympy expression)
         :param symbol: The comparison symbol
         :param rhs: The right hand side expression (sympy expression or number)
-        :return Operator:
+        :rtype: Operator
         """
         expression = lhs - rhs
         lhs = {str(var): float(expression.coeff(var, 1)) for var in expression.free_symbols}
         rhs = float(-sympy.lambdify(expression.free_symbols, expression)(*([0] * len(expression.free_symbols))))
         operator = Operator.constructors[symbol](lhs, rhs)
-        assert isinstance(operator, Operator)
         return operator
 
     def is_tautology(self):
@@ -307,9 +309,36 @@ class Test(object):
     def __eq__(self, other):
         raise NotImplementedError()
 
+    @staticmethod
+    def export_test(test):
+        if isinstance(test, LinearTest):
+            kind = "linear"
+        elif isinstance(test, BinaryTest):
+            kind = "bool"
+        else:
+            raise UnexpectedTypeError("test", test)
+        return {"kind": kind, "object": repr(test)}
+
+    @staticmethod
+    def import_test(test_input):
+        kind = test_input["kind"]
+        if kind == "linear":
+            exp = r"(.*) (<=|<|>=|>) (.*)"
+            match = re.match(exp, test_input["object"])
+            return LinearTest(match.group(1), match.group(2), match.group(3))
+        elif kind == "bool":
+            return BinaryTest(test_input["object"])
+        else:
+            raise RuntimeError("Invalid input, unknown kind {}".format(kind))
+
 
 class LinearTest(Test):
     def __init__(self, lhs, symbol=None, rhs=0):
+        """
+        :type lhs: sympy.Basic|str|int\Operator
+        :type symbol: str
+        :type rhs: sympy.Basic|str|int
+        """
         if symbol is None:
             operator = lhs
         else:
@@ -358,7 +387,7 @@ class LinearTest(Test):
             return self, child_true, child_false
 
     def __repr__(self):
-        return str(self.operator)
+        return repr(self.operator)
 
     def __hash__(self):
         return hash(self.operator)
