@@ -430,7 +430,7 @@ class Diagram:
                 else:
                     node = self.node(node.child_false)
             elif isinstance(node, TerminalNode):
-                node.evaluate(assignment)
+                return node.evaluate(assignment)
             else:
                 raise RuntimeError("Unexpected node type {} of node {}".format(type(node), node))
 
