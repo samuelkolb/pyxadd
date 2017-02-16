@@ -43,7 +43,10 @@ def import_neighbors(authors, lookup, path):
 
 
 def export_subset(size, complete_authors, complete_neighbors, complete_sum_papers, authors_file, coauthors_file):
-    indices = random.sample(range(len(complete_authors)), size)
+    if size < len(complete_authors):
+        indices = random.sample(range(len(complete_authors)), size)
+    else:
+        indices = list(i for i in range(len(complete_authors)))
     index_set = set(indices)
     subset_authors = [complete_authors[i] for i in indices]
     subset_lookup = {subset_authors[i]: i for i in range(len(subset_authors))}
@@ -54,11 +57,11 @@ def export_subset(size, complete_authors, complete_neighbors, complete_sum_paper
     ]
 
     with open(authors_file, "w") as f:
-        for i in range(size):
+        for i in range(len(subset_authors)):
             print("{}, {}".format(subset_authors[i], subset_sum_papers[i]), file=f)
 
     with open(coauthors_file, "w") as f:
-        for i in range(size):
+        for i in range(len(subset_authors)):
             author_neighbors = subset_neighbors[i]
             for neighbor in author_neighbors:
                 a1, a2 = sorted((subset_authors[i], subset_authors[neighbor]))
@@ -211,6 +214,8 @@ def calculate_ground_pagerank(timer, authors, neighbors, damping_factor, delta, 
         for _ in neighbors[i]:
             count += 1
 
+    print("\n{} links".format(count))
+
     row = numpy.zeros(count)
     col = numpy.zeros(count)
     data = numpy.zeros(count)
@@ -221,6 +226,7 @@ def calculate_ground_pagerank(timer, authors, neighbors, damping_factor, delta, 
             col[index] = j
             data[index] = 1
             # adjacency_matrix[i, j] = 1
+            index += 1
 
     from scipy.sparse import coo_matrix
     from sparse import simple
@@ -233,9 +239,9 @@ def calculate_ground_pagerank(timer, authors, neighbors, damping_factor, delta, 
     values_ground2 = pagerank_scipy(adjacency_matrix, alpha=damping_factor, max_iter=iterations, tol=delta)
 
     timer.start("Comparing page-rank results ({} iterations)".format(iterations))
-    for i in range(len(values_ground)):
-        if abs(values_ground[i] - values_ground2[i]) > 2 * 10 ** -8:
-            print("Solutions not in line")
+    # for i in range(len(values_ground)):
+    #     if abs(values_ground[i] - values_ground2[i]) > 2 * 10 ** -8:
+    #         print("Solutions not in line: {} (sparse) vs {} (networkx)".format(values_ground[i], values_ground2[i]))
 
     # from sparse_pagerank_networkx import pagerank_scipy
     # values_ground1 = pagerank_scipy(adjacency_matrix, alpha=0.85, tol=10 ** -3)
@@ -308,8 +314,17 @@ class Timer(object):
         return self.sub_timer
 
 
+def make_histogram(values):
+    histogram = {}
+    for val in values:
+        if val not in histogram:
+            histogram[val] = 0
+        histogram[val] += 1
+    return histogram
+
+
 def main():
-    size = 1000000
+    size = 10000000
     authors_root_file = "authors.txt"
     coauthors_root_file = "coauthors.txt"
     authors_file = "authors_{}.txt".format(size)
@@ -370,5 +385,11 @@ def main():
     tau, _ = stats.kendalltau(values_lifted, values_ground)
     timer.stop()
     print("KT = {}".format(tau))
+
+    histogram_lifted = make_histogram(values_lifted)
+    histogram_ground = make_histogram(values_ground)
+
+    # print(histogram_lifted)
+    # print(histogram_ground)
 
 main()
