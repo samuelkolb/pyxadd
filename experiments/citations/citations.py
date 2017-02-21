@@ -90,7 +90,7 @@ class AuthorPagerank(object):
         return ["f{}".format(i) for i in range(self.attribute_count)]
 
     def compute_pagerank(self, timer, damping_factor, delta, iterations, tree_file=None, diagram_file=None,
-                         options=None):
+                         diagram_export_file=None, discrete=True, options=None):
         if self.converged is not None:
             return
 
@@ -151,7 +151,7 @@ class AuthorPagerank(object):
             export_classifier(clf, tree_file)
 
         timer.start("Converting decision tree to XADD")
-        xadd = decision_tree_to_xadd(clf, row_variables + column_variables, discrete=False)
+        xadd = decision_tree_to_xadd(clf, row_variables + column_variables, discrete=discrete)
         for var in variables:
             xadd.pool.add_var(var[0], "int")
         matrix = Matrix(xadd, row_variables, column_variables).reduce()
@@ -159,6 +159,14 @@ class AuthorPagerank(object):
         if diagram_file is not None:
             timer.start("Exporting diagram to {}".format(diagram_file))
             matrix.export(diagram_file)
+
+        if diagram_export_file is not None:
+            timer.start("Exporting diagram pool to {} (root: {}, row-vars: {}, col-vars: {})"
+                        .format(diagram_export_file, matrix.diagram.root_id, matrix.row_variables,
+                                matrix.column_variables))
+            from pyxadd.diagram import Pool
+            with open(diagram_export_file, "w") as stream:
+                stream.write(Pool.to_json(matrix.diagram.pool))
 
         timer.start("Computing lifted pagerank")
         print()
@@ -323,8 +331,8 @@ def make_histogram(values):
     return histogram
 
 
-def main():
-    size = 500000
+def main(delta, iterations, damping_factor, discrete):
+    size = 1000000
     authors_root_file = "authors.txt"
     coauthors_root_file = "coauthors.txt"
     authors_file = "authors_{}.txt".format(size)
@@ -333,13 +341,10 @@ def main():
     diagram_file = "diagram_{}".format(size)
     converged_file = "converged_{}".format(size)
     values_ground_file = "ground_value_{}.txt".format(size)
+    # pool_file = "pool_{}.txt".format(size)
 
     cache_authors = True
     cache_ground_values = False
-
-    delta = 0
-    iterations = 30
-    damping_factor = 0.85
 
     timer = Timer()
 
@@ -360,13 +365,13 @@ def main():
     timer.start("Computing lifted values")
     task = AuthorPagerank(authors, neighbors, sum_papers)
     task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
-                          tree_file=tree_file, diagram_file=diagram_file,
-                          options={"max_depth": 6, "min_samples_leaf": size / 1000})
+                          tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
+                          discrete=discrete, options={"max_depth": 6, "min_samples_leaf": size / 1000})
     values_lifted = task.values
 
-    # timer.start("Computing decision tree accuracy")
-    # true_positive, true_negative, positive, negative = task.get_decision_tree_accuracy(1000000)
-    # print("\nTP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
+    timer.start("Computing decision tree accuracy")
+    true_positive, true_negative, positive, negative = task.get_decision_tree_accuracy(1000000)
+    print("\nTP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
 
     timer.start("Exporting converged diagram to {}".format(converged_file))
     task.converged.export(converged_file)
@@ -392,4 +397,12 @@ def main():
     # print(histogram_lifted)
     # print(histogram_ground)
 
-main()
+if __name__ == "__main__":
+    delta = 0
+    iterations = 30
+    damping_factor = 0.85
+    discrete = True
+
+    # for damping_factor in [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]:
+    # for damping_factor in [0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0]:
+    main(delta, iterations, damping_factor, discrete)
