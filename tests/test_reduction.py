@@ -2,7 +2,7 @@ import unittest
 
 from pyxadd.build import Builder
 from pyxadd.diagram import Pool, Diagram
-from pyxadd.reduce import LinearReduction, SmtReduce, SimpleBoundReducer
+from pyxadd.reduce import LinearReduction, SmtReduce, SimpleBoundReducer, is_simple
 from pyxadd.test import LinearTest
 from pyxadd.view import export
 from pyxadd.walk import map_leaves, DepthFirstWalker
@@ -77,3 +77,7 @@ class TestReduce(unittest.TestCase):
             result = diagram.pool.diagram(solver.reduce(diagram.root_id))
             self.assertEqual(2, get_terminal_count(result))
             self.assertEqual(1, get_path_count(result, count_zero=False))
+
+    def test_is_simple(self):
+        self.assertFalse(is_simple(build_diagram_1()))
+        self.assertTrue(is_simple(build_diagram_2()))
