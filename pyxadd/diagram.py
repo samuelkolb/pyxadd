@@ -21,6 +21,9 @@ class Node:
     def node_id(self):
         return self._node_id
 
+    def is_terminal(self):
+        raise NotImplementedError()
+
 
 class TerminalNode(Node):
     def __init__(self, node_id, expression):
@@ -50,6 +53,9 @@ class TerminalNode(Node):
     def __repr__(self):
         return "T(id: {}, expression: {})".format(self.node_id, self.expression)
 
+    def is_terminal(self):
+        return True
+
 
 class InternalNode(Node):
     def __init__(self, node_id, test, child_true, child_false):
@@ -75,6 +81,9 @@ class InternalNode(Node):
     def __repr__(self):
         return "I(id: {}, test: {}, true: {}, false: {})"\
             .format(self.node_id, self.test, self.child_true, self.child_false)
+
+    def is_terminal(self):
+        return False
 
 
 class DefaultCache(object):
