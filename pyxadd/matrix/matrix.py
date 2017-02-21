@@ -7,7 +7,7 @@ from pyxadd.reduce import LinearReduction, SimpleBoundReducer
 
 
 class Matrix(object):
-    def __init__(self, diagram, row_vars, col_vars, height=None, width=None, auto_reduce=False):
+    def __init__(self, diagram, row_vars, col_vars, height=None, width=None, auto_reduce=False, is_simple=None):
         from pyxadd.diagram import Diagram
         assert isinstance(diagram, Diagram)
         self._diagram = diagram
@@ -18,6 +18,7 @@ class Matrix(object):
         self._auto_reduce = auto_reduce
         self._reducer = LinearReduction(self.diagram.pool)
         self._simple_reducer = SimpleBoundReducer(self.diagram.pool)
+        self._is_simple = is_simple
 
     @property
     def row_variables(self):
@@ -47,6 +48,30 @@ class Matrix(object):
                 self._height *= ub - lb + 1
         return self._height
 
+    def is_simple(self):
+        from pyxadd.reduce import is_simple
+        if self._is_simple is None:
+            if len(self._row_vars + self._col_vars) <= 1:
+                self._is_simple = True
+            else:
+                self._is_simple = is_simple(self.diagram)
+        return self._is_simple
+
+    def _matrix(self, diagram, row_vars, col_vars, matrices, height=None, width=None):
+        """
+        Constructs a matrix to be returned
+        :type diagram: pyxadd.diagram.Diagram
+        :type matrices: Matrix[]
+        :rtype: Matrix
+        """
+        auto_reduce = all(matrix._auto_reduce for matrix in matrices)
+        if all((matrix._is_simple is not None) for matrix in matrices):
+            is_simple = all(matrix._is_simple for matrix in matrices)
+        else:
+            is_simple = None
+        return Matrix(diagram, row_vars, col_vars, auto_reduce=auto_reduce, is_simple=is_simple, height=height,
+                      width=width)
+
     def __add__(self, other):
         assert isinstance(other, Matrix)
         if self._row_vars != other._row_vars:
@@ -56,8 +81,7 @@ class Matrix(object):
 
         diagram = self.diagram + other.diagram
         diagram = self._optional_reduce(diagram)
-        return Matrix(diagram, self._row_vars, self._col_vars, height=self.height, width=self.width,
-                      auto_reduce=(self._auto_reduce and other._auto_reduce))
+        return self._matrix(diagram, self._row_vars, self._col_vars, [self, other], self.height, self.width)
 
     def __sub__(self, other):
         assert isinstance(other, Matrix)
@@ -68,11 +92,11 @@ class Matrix(object):
 
         diagram = self.diagram - other.diagram
         diagram = self._optional_reduce(diagram)
-        return Matrix(diagram, self._row_vars, self._col_vars, height=self.height, width=self.width,
-                      auto_reduce=(self._auto_reduce and other._auto_reduce))
+        return self._matrix(diagram, self._row_vars, self._col_vars, [self, other], self.height, self.width)
 
     def __mul__(self, other):
         if isinstance(other, Matrix):
+            # Multiply with matrix
             if self._col_vars != other._row_vars:
                 raise RuntimeError("Mismatch between column variables {} and row variables {}"
                                    .format(self._col_vars, other._row_vars))
@@ -82,12 +106,11 @@ class Matrix(object):
             variables = [t[0] for t in self._col_vars]
             diagram = pool.diagram(matrix_multiply(pool, self.diagram.root_id, other.diagram.root_id, variables))
             diagram = self._optional_reduce(diagram)
-            return Matrix(diagram, self._row_vars, other._col_vars, height=self.height, width=other.width,
-                          auto_reduce=(self._auto_reduce and other._auto_reduce))
+            return self._matrix(diagram, self._row_vars, other._col_vars, [self, other], self.height, other.width)
         else:
+            # Multiply with constant expression
             diagram = self.diagram * self.diagram.pool.diagram(self.diagram.pool.terminal(other))
-            return Matrix(diagram, self._row_vars, self._col_vars, height=self.height, width=self.width,
-                          auto_reduce=self._auto_reduce)
+            return self._matrix(diagram, self._row_vars, self._col_vars, [self], self.height, self.width)
 
     def __rmul__(self, other):
         return self * other
@@ -104,9 +127,9 @@ class Matrix(object):
         if isinstance(other, Matrix):
             diagram = self.diagram * other.diagram
             # TODO check row / column variables
-            return Matrix(diagram, self.combine_variables(self._row_vars, other._row_vars),
-                          self.combine_variables(self._col_vars, other._col_vars),
-                          auto_reduce=(self._auto_reduce and other._auto_reduce))
+            row_vars = self.combine_variables(self._row_vars, other._row_vars)
+            col_vars = self.combine_variables(self._col_vars, other._col_vars)
+            return self._matrix(diagram, row_vars, col_vars, [self, other])
         else:
             raise RuntimeError("{} is not a matrix".format(other))
 
@@ -116,8 +139,7 @@ class Matrix(object):
 
     def reduce(self, reducer=None):
         diagram = self._reduce_diagram(self.diagram, reducer)
-        return Matrix(diagram, self._row_vars, self._col_vars, height=self.height, width=self.width,
-                      auto_reduce=self._auto_reduce)
+        return self._matrix(diagram, self._row_vars, self._col_vars, [self], self.height, self.width)
 
     def evaluate(self, assignment):
         return self.diagram.evaluate(assignment)
@@ -126,11 +148,10 @@ class Matrix(object):
         diagram = self.diagram.pool.diagram(rename(self.diagram, translation))
         row_vars = [(translation[v] if v in translation else v, lb, ub) for v, lb, ub in self._row_vars]
         col_vars = [(translation[v] if v in translation else v, lb, ub) for v, lb, ub in self._col_vars]
-        return Matrix(diagram, row_vars, col_vars, height=self.height, width=self.width,
-                      auto_reduce=self._auto_reduce)
+        return self._matrix(diagram, row_vars, col_vars, [self], self.height, self.width)
 
     def transpose(self):
-        return Matrix(self.diagram, self._col_vars, self._row_vars, auto_reduce=self._auto_reduce)
+        return self._matrix(self.diagram, self._col_vars, self._row_vars, [self], self.width, self.height)
 
     def print_ground(self, row_limit=None, column_limit=None):
         results = []
@@ -204,13 +225,12 @@ class Matrix(object):
         new_row_vars = self.row_variables if on_rows else []
         new_col_vars = self.column_variables if not on_rows else []
         projected_diagram = self.diagram.pool.diagram(projected_id)
-        return Matrix(projected_diagram, new_row_vars, new_col_vars, auto_reduce=self._auto_reduce)
+        return self._matrix(projected_diagram, new_row_vars, new_col_vars, [self])
 
     def transform_leaves(self, f):
         transformed_id = transform_leaves(f, self.diagram)
         diagram = self.diagram.pool.diagram(transformed_id)
-        return Matrix(diagram, self.row_variables, self.column_variables, height=self.height, width=self.width,
-                      auto_reduce=self._auto_reduce)
+        return self._matrix(diagram, self.row_variables, self.column_variables, [self], self.height, self.width)
 
     def _optional_reduce(self, diagram):
         if self._auto_reduce is not False:
@@ -220,7 +240,7 @@ class Matrix(object):
 
     def _reduce_diagram(self, diagram, reducer=None):
         if reducer is None:
-            reducer = self._reducer if len(self._row_vars + self._col_vars) > 1 else self._simple_reducer
+            reducer = self._reducer if not self.is_simple() else self._simple_reducer
 
         variables = [t[0] for t in self._row_vars + self._col_vars]
         # print(variables)

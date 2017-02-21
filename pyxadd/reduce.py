@@ -186,6 +186,15 @@ class SmtReduce(Reducer):
         raise RuntimeError("Could not parse {} of type {}".format(expression, type(expression)))
 
 
+def is_simple(diagram):
+    profile = diagram.profile
+    for node_id in profile:
+        node = diagram.node(node_id)
+        if isinstance(node, InternalNode) and isinstance(node.test, LinearTest) and len(node.test.variables) > 1:
+            return False
+    return True
+
+
 class SimpleBoundReducer(Reducer):
     def __init__(self, pool, ignore_multiple_variables=True):
         Reducer.__init__(self, pool)

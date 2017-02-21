@@ -135,6 +135,9 @@ class WalkingProfile:
         self._counts = {n: (c, 0) for n, c in nodes_and_counts}
         self._next = 0
 
+    def __iter__(self):
+        return iter(self._nodes)
+
     def reset(self):
         """
         Resets the profile.
