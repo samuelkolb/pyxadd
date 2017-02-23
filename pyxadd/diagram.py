@@ -127,8 +127,13 @@ class DefaultCache(object):
         self.misses = 0
 
 
+class Ordering(object):
+    def test_smaller_eq(self, test_id1, test1, test_id2, test2):
+        raise NotImplementedError()
+
+
 class Pool:
-    def __init__(self, empty=False):
+    def __init__(self, empty=False, ordering=None):
         self._counter = 1
         self._nodes = dict()
         self._internal_map = dict()
@@ -137,6 +142,7 @@ class Pool:
         self.vars = dict()
         self.caches = dict()
         self._apply_cache = dict()
+        self._ordering = ordering
         if not empty:
             self.zero_id = self.terminal("0")
             self.one_id = self.terminal("1")
@@ -285,7 +291,7 @@ class Pool:
             # Find minimal node (or only internal node)
             if isinstance(node1, InternalNode):
                 if isinstance(node2, InternalNode):
-                    if self._get_test_id(node1.test) <= self._get_test_id(node2.test):
+                    if self.test_smaller_eq(node1.test, node2.test):
                         selected_test = node1.test
                     else:
                         selected_test = node2.test
@@ -313,7 +319,12 @@ class Pool:
         return result
 
     def test_smaller_eq(self, test1, test2):
-        return self._get_test_id(test1) <= self._get_test_id(test2)
+        test_id1 = self._get_test_id(test1)
+        test_id2 = self._get_test_id(test2)
+        if self._ordering is None:
+            return test_id1 <= test_id2
+        else:
+            return self._ordering.test_smaller_eg(test_id1, test1, test_id2, test2)
 
     def invert(self, node_id):
         """
