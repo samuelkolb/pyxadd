@@ -57,4 +57,8 @@ def is_ordered(diagram):
 
 
 def order(diagram):
+    """
+    :type diagram: Diagram
+    :rtype: Diagram
+    """
     return diagram.pool.diagram(Order(diagram).walk())
