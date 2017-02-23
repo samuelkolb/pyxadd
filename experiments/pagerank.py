@@ -93,6 +93,7 @@ def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=10
     new_vector = initial_vector
 
     matrix_a = matrix_a.rename({"c_" + var: var for var in names})
+    matrix_a.export("speed/matrix")
 
     for i in range(iterations):
         # Check for convergence
@@ -109,6 +110,7 @@ def power_iteration(matrix_a, variables=None, initial_vector=None, iterations=10
 
         # Compute next iteration
         new_vector = matrix_a * new_vector
+        new_vector.export("speed/vector{}".format(i))
 
         # Rename column variables to row variables
         new_vector = new_vector.rename({"r_" + var: var for var in names}).reduce()
