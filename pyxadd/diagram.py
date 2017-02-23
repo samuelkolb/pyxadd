@@ -165,6 +165,12 @@ class Pool:
     def is_cached(self, name, key):
         return self.caches[name].contains(key)
 
+    def change_order(self, new_ordering):
+        warnings.warn("Using experimental feature: change order.", Warning)
+        for cache in self.caches.values():
+            cache.clear()
+        self._ordering = new_ordering
+
     def _get_test_id(self, test):
         return self._tests.get(test, None)
 
@@ -426,10 +432,8 @@ class Diagram:
         Returns the profile of this diagram, creates a profile if none exists
         :rtype: pyxadd.walk.WalkingProfile
         """
-        from pyxadd.walk import WalkingProfile
-        if self._profile is None:
-            self._profile = WalkingProfile(self)
-        return self._profile
+        from pyxadd.walk import get_profile
+        return get_profile(self)
 
     def node(self, node_id):
         """
