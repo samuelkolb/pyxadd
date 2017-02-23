@@ -17,6 +17,7 @@ class Operator:
         self._symbol = symbol
         self._lhs = lhs
         self._rhs = rhs + 0
+        self._hash_code = None
 
     @property
     def symbol(self):
@@ -130,8 +131,10 @@ class Operator:
         return "{} {} {}".format(coefficients, self.symbol, constant)
 
     def __hash__(self):
-        lhs_tuples = tuple((k, self.lhs[k]) for k in sorted(self.lhs.keys()))
-        return hash((lhs_tuples, self.symbol, self.rhs))
+        if self._hash_code is None:
+            lhs_tuples = tuple((k, self.lhs[k]) for k in sorted(self.lhs.keys()))
+            self._hash_code = hash((lhs_tuples, self.symbol, self.rhs))
+        return self._hash_code
 
     def __eq__(self, other):
         return isinstance(other, Operator) and self.symbol == other.symbol and self.children == other.children
