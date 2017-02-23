@@ -189,28 +189,38 @@ class AuthorPagerank(object):
         positive = 0
         true_negative = 0
         negative = 0
-        evaluated = set()
+        pairs = set()
+        examples = []
 
         def select():
             a1 = random.randint(0, len(self.authors) - 1)
             a2 = random.randint(0, len(self.authors) - 1)
-            if a1 == a2 or (a1, a2) in evaluated:
+            if a1 == a2 or (a1, a2) in pairs:
                 return select()
             return a1, a2
 
-        while len(evaluated) < samples:
+        control = numpy.zeros(samples)
+        for i in range(samples):
             a1, a2 = select()
-            predicted = self.clf.predict([self.attributes[a1] + self.attributes[a2]])[0]
-            if a2 in self.neighbors[a1]:
-                if predicted == 1:
+            pairs.add((a1, a2))
+            control[i] = 1 if a2 in self.neighbors[a1] else 0
+            examples.append(self.attributes[a1] + self.attributes[a2])
+
+        predicted = self.clf.predict(examples)
+
+        for i in range(samples):
+            if control[i] == 1:
+                if predicted[i] == 1:
                     true_positive += 1
+                else:
+                    print(predicted[i])
                 positive += 1
             else:
-                if predicted == 0:
+                if predicted[i] == 0:
                     true_negative += 1
                 negative += 1
-            evaluated.add((a1, a2))
-        total = positive + negative
+
+        # total = positive + negative
         return true_positive, true_negative, positive, negative
 
 
@@ -332,7 +342,7 @@ def make_histogram(values):
 
 
 def main(delta, iterations, damping_factor, discrete):
-    size = 1000000
+    size = 500000
     authors_root_file = "authors.txt"
     coauthors_root_file = "coauthors.txt"
     authors_file = "authors_{}.txt".format(size)
