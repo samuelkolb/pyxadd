@@ -11,9 +11,11 @@ import time
 from experiments.link_prediction import learn_decision_tree, decision_tree_to_xadd, export_classifier
 from experiments.pagerank import pagerank
 from experiments.test import test_pagerank
+from pyxadd.evaluate import mass_evaluate
 from pyxadd.matrix.matrix import Matrix
 
 import sparse_pagerank
+from pyxadd.timer import Timer
 
 
 def import_authors(path):
@@ -67,8 +69,19 @@ def export_subset(size, complete_authors, complete_neighbors, complete_sum_paper
                 a1, a2 = sorted((subset_authors[i], subset_authors[neighbor]))
                 print("{}, {}".format(a1, a2), file=f)
 
-# export_subset(size, authors, neighbors, sum_papers)
-# exit()
+
+def copy_neighbors(neighbors, copy_rate):
+    new_list = []
+    for a1 in range(len(neighbors)):
+        new_neighbors = set(neighbors[a1])
+        for n1 in neighbors[a1]:
+            for n2 in neighbors[n1]:
+                if random.random() < copy_rate:
+                    new_neighbors.add(n2)
+        new_neighbors = sorted(list(new_neighbors))
+        new_list.append(new_neighbors)
+    return new_list
+
 
 
 class AuthorPagerank(object):
@@ -169,20 +182,19 @@ class AuthorPagerank(object):
                 stream.write(Pool.to_json(matrix.diagram.pool))
 
         timer.start("Computing lifted pagerank")
-        print()
         converged, iterations = pagerank(matrix, damping_factor, variables, delta=delta, norm=1, iterations=iterations)
-        print(iterations)
         self.converged = converged
+        timer.log("Converged after {} iterations".format(iterations))
 
         timer.start("Computing values for given authors")
         self.values = self.compute_values(authors, attributes)
 
     def compute_values(self, authors, attributes):
         converged, attribute_count, variables = self.converged, self.attribute_count, self.variable_names
-        values = []
+        assignments = []
         for i in range(len(authors)):
-            values.append(converged.evaluate({variables[j]: attributes[i][j] for j in range(attribute_count)}))
-        return values
+            assignments.append({variables[j]: attributes[i][j] for j in range(attribute_count)})
+        return mass_evaluate(converged.diagram, assignments)
 
     def get_decision_tree_accuracy(self, samples):
         true_positive = 0
@@ -212,8 +224,6 @@ class AuthorPagerank(object):
             if control[i] == 1:
                 if predicted[i] == 1:
                     true_positive += 1
-                else:
-                    print(predicted[i])
                 positive += 1
             else:
                 if predicted[i] == 0:
@@ -224,16 +234,24 @@ class AuthorPagerank(object):
         return true_positive, true_negative, positive, negative
 
 
+def count_links(neighbors):
+    count = 0
+    for i in range(len(neighbors)):
+        count += len(neighbors[i])
+    return count
+
+
 def calculate_ground_pagerank(timer, authors, neighbors, damping_factor, delta, iterations):
-    timer.start("Creating sparse adjacency matrix")
+    timer.start("Counting links")
     count = 0
     n = len(authors)
     for i in range(n):
         for _ in neighbors[i]:
             count += 1
 
-    print("\n{} links".format(count))
+    timer.log("{} links, density: {}".format(count, count / float(n * n)))
 
+    timer.start("Creating sparse adjacency matrix")
     row = numpy.zeros(count)
     col = numpy.zeros(count)
     data = numpy.zeros(count)
@@ -295,43 +313,6 @@ def sort_authors(authors, values):
     return [name for name, _ in sorted_both]
 
 
-class Timer(object):
-    def __init__(self, prefix="", clean=True):
-        self.start_time = None
-        self.sub_timer = None
-        self.prefix = prefix
-        self.clean = clean
-
-    def start(self, title):
-        if self.start_time is not None:
-            self.stop()
-
-        self.start_time = time.time()
-        if not self.clean:
-            print()
-            self.clean = True
-        print("{}{}...".format(self.prefix, title), end="")
-
-    def stop(self):
-        if self.start_time is not None:
-            time_taken = time.time() - self.start_time
-            self.start_time = None
-            if self.sub_timer is not None:
-                self.sub_timer.stop()
-                self.sub_timer = None
-            print(" done (took {:.2f}s)".format(time_taken))
-
-    def sub_time(self):
-        """
-        :rtype: Timer|None
-        """
-        if self.start_time is None:
-            return None
-        if self.sub_timer is None:
-            self.sub_timer = Timer(prefix=self.prefix + "\t", clean=False)
-        return self.sub_timer
-
-
 def make_histogram(values):
     histogram = {}
     for val in values:
@@ -341,8 +322,40 @@ def make_histogram(values):
     return histogram
 
 
-def main(delta, iterations, damping_factor, discrete):
-    size = 500000
+class CitationExperiment(object):
+    def __init__(self):
+        self.size = None
+        self.copy_rate = None
+        self.links = None
+        self.damping_factor = None
+        self.tree_depth = None
+        self.true_positive = None
+        self.positive = None
+        self.true_negative = None
+        self.negative = None
+        self.kendall_tau = None
+        self.iterations = None
+        self.lifted_speed = None
+        self.ground_speed = None
+
+    @property
+    def density(self):
+        return self.links / float(self.size ** 2)
+
+    @property
+    def accuracy_positive(self):
+        return self.true_positive / float(self.positive)
+
+    @property
+    def accuracy_negative(self):
+        return self.true_negative / float(self.negative)
+
+
+def main(size, delta, iterations, damping_factor, copy_rate, discrete):
+    """
+
+    :rtype: CitationExperiment
+    """
     authors_root_file = "authors.txt"
     coauthors_root_file = "coauthors.txt"
     authors_file = "authors_{}.txt".format(size)
@@ -351,12 +364,20 @@ def main(delta, iterations, damping_factor, discrete):
     diagram_file = "diagram_{}".format(size)
     converged_file = "converged_{}".format(size)
     values_ground_file = "ground_value_{}.txt".format(size)
+    tree_depth = 5
     # pool_file = "pool_{}.txt".format(size)
 
     cache_authors = True
     cache_ground_values = False
 
     timer = Timer()
+
+    experiment = CitationExperiment()
+    experiment.size = size
+    experiment.iterations = iterations
+    experiment.damping_factor = damping_factor
+    experiment.copy_rate = copy_rate
+    experiment.tree_depth = tree_depth
 
     if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file):
         timer.start("Importing authors from {} to compute subset".format(authors_root_file))
@@ -372,16 +393,27 @@ def main(delta, iterations, damping_factor, discrete):
     timer.start("Importing coauthors from {}".format(coauthors_file))
     neighbors = import_neighbors(authors, lookup, coauthors_file)
 
+    timer.start("Copy co-authors (copy rate={})".format(copy_rate))
+    neighbors = copy_neighbors(neighbors, copy_rate)
+
+    timer.start("Counting links")
+    experiment.links = count_links(neighbors)
+
     timer.start("Computing lifted values")
     task = AuthorPagerank(authors, neighbors, sum_papers)
     task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
                           tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
-                          discrete=discrete, options={"max_depth": 6, "min_samples_leaf": size / 1000})
+                          discrete=discrete, options={"max_depth": tree_depth, "min_samples_leaf": size / 1000})
     values_lifted = task.values
+    experiment.lifted_speed = timer.stop()
 
     timer.start("Computing decision tree accuracy")
     true_positive, true_negative, positive, negative = task.get_decision_tree_accuracy(1000000)
-    print("\nTP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
+    timer.log("TP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
+    experiment.true_positive = true_positive
+    experiment.positive = positive
+    experiment.true_negative = true_negative
+    experiment.negative = negative
 
     timer.start("Exporting converged diagram to {}".format(converged_file))
     task.converged.export(converged_file)
@@ -390,6 +422,8 @@ def main(delta, iterations, damping_factor, discrete):
         timer.start("Calculating ground pagerank")
         ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors, damping_factor=damping_factor,
                                                     delta=delta, iterations=iterations)
+        experiment.ground_speed = timer.stop()
+
         timer.start("Exporting ground pagerank to {}".format(values_ground_file))
         export_ground_pagerank(ground_pagerank, values_ground_file)
 
@@ -398,21 +432,14 @@ def main(delta, iterations, damping_factor, discrete):
 
     timer.start("Calculating kendall tau correlation coefficient")
     tau, _ = stats.kendalltau(values_lifted, values_ground)
+    timer.log("KT = {}".format(tau))
     timer.stop()
-    print("KT = {}".format(tau))
+    experiment.kendall_tau = tau
 
-    histogram_lifted = make_histogram(values_lifted)
-    histogram_ground = make_histogram(values_ground)
+    # histogram_lifted = make_histogram(values_lifted)
+    # histogram_ground = make_histogram(values_ground)
 
     # print(histogram_lifted)
     # print(histogram_ground)
 
-if __name__ == "__main__":
-    delta = 0
-    iterations = 30
-    damping_factor = 0.85
-    discrete = True
-
-    # for damping_factor in [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]:
-    # for damping_factor in [0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0]:
-    main(delta, iterations, damping_factor, discrete)
+    return experiment

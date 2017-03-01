@@ -16,3 +16,66 @@ Exporting ground pagerank to ground_value_50000.txt... done (took 0.08s)
 Importing ground pagerank from ground_value_50000.txt... done (took 0.04s)
 Calculating kendall tau correlation coefficient... done (took 0.01s)
 KT = 0.95845031959
+
+
+# 500000 - depth: 6, leaf: size/1000
+Importing authors from authors_500000.txt... done (took 1.04s)
+Importing coauthors from coauthors_500000.txt... done (took 3.93s)
+Computing lifted values...
+	Computing attributes... done (took 0.20s)
+	Computing learning examples and labels... done (took 6.27s)
+	Learning decision tree... done (took 2.11s)
+	Exporting decision tree to tree_500000.dot... done (took 0.01s)
+	Converting decision tree to XADD... done (took 0.19s)
+	Exporting diagram to diagram_500000... done (took 0.00s)
+	Computing lifted pagerank... done (took 29.04s)
+	Converged after 30 iterations... done (took 0.00s)
+	Computing values for given authors... done (took 12.50s)
+ done (took 50.32s)
+Computing decision tree accuracy...
+TP = 3, TN = 805439, P = 3, N = 999997
+ done (took 8.53s)
+Exporting converged diagram to converged_500000... done (took 0.00s)
+Calculating ground pagerank...
+	Creating sparse adjacency matrix...
+1227331 links
+ done (took 1.45s)
+	Computing sparse page-rank... done (took 2.22s)
+	Computing reference page-rank (networkx)... done (took 1.28s)
+	Comparing page-rank results (30 iterations)... done (took 0.01s)
+ done (took 4.96s)
+Exporting ground pagerank to ground_value_500000.txt... done (took 0.70s)
+Importing ground pagerank from ground_value_500000.txt... done (took 0.35s)
+Calculating kendall tau correlation coefficient... done (took 0.16s)
+KT = 0.769396854473
+
+# 500000 - depth: 8, leaf: size/1000
+Importing authors from authors_500000.txt... done (took 0.98s)
+Importing coauthors from coauthors_500000.txt... done (took 3.88s)
+Computing lifted values...
+	Computing attributes... done (took 0.21s)
+	Computing learning examples and labels... done (took 5.77s)
+	Learning decision tree... done (took 2.03s)
+	Exporting decision tree to tree_500000.dot... done (took 0.03s)
+	Converting decision tree to XADD... done (took 0.49s)
+	Exporting diagram to diagram_500000... done (took 0.00s)
+	Computing lifted pagerank... done (took 212.03s)
+	Converged after 30 iterations... done (took 0.00s)
+	Computing values for given authors... done (took 13.22s)
+ done (took 233.79s)
+Computing decision tree accuracy...
+TP = 2, TN = 824215, P = 2, N = 999998
+ done (took 9.52s)
+Exporting converged diagram to converged_500000... done (took 0.01s)
+Calculating ground pagerank...
+	Creating sparse adjacency matrix...
+1227331 links
+ done (took 1.52s)
+	Computing sparse page-rank... done (took 2.27s)
+	Computing reference page-rank (networkx)... done (took 1.20s)
+	Comparing page-rank results (30 iterations)... done (took 0.01s)
+ done (took 5.00s)
+Exporting ground pagerank to ground_value_500000.txt... done (took 0.80s)
+Importing ground pagerank from ground_value_500000.txt... done (took 0.36s)
+Calculating kendall tau correlation coefficient... done (took 0.16s)
+KT = 0.737619630373
