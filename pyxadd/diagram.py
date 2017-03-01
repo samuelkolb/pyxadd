@@ -338,7 +338,8 @@ class Pool:
         :type node_id: int
         :rtype: int
         """
-        warnings.warn("This method is slowish and does not check for non-boolean leaves.", DeprecationWarning)
+        # TODO warnings.warn("This method is slowish and does not check for non-boolean leaves.", DeprecationWarning)
+        # from pyxadd.walk import profile_exists
         minus_one = self.terminal("-1")
         return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
 
