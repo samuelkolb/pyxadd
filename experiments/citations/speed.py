@@ -1,5 +1,6 @@
 from experiments.pagerank import pagerank
-from pyxadd.diagram import Pool
+from pyxadd.order import order
+from pyxadd.diagram import Pool, Ordering
 from pyxadd.matrix.matrix import Matrix
 
 size = 500000
@@ -18,5 +19,14 @@ diagram = exported_pool.diagram(root_id)
 
 matrix = Matrix(diagram, row_vars, col_vars)
 matrix.export("test.dot")
+
+
+class CustomOrdering(Ordering):
+    def test_smaller_eq(self, test_id1, test1, test_id2, test2):
+        pass
+
+
+exported_pool.change_order(CustomOrdering())
+reordered_matrix = Matrix(order(diagram), row_vars, col_vars)
 
 pagerank(matrix, 0.85, variables, iterations=2, delta=0, norm=1)
