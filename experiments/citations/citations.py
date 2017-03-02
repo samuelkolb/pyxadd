@@ -15,6 +15,7 @@ from pyxadd.evaluate import mass_evaluate
 from pyxadd.matrix.matrix import Matrix
 
 import sparse_pagerank
+from pyxadd.optimization import find_optimal_conditions
 from pyxadd.timer import Timer
 
 
@@ -92,6 +93,7 @@ class AuthorPagerank(object):
         self.attributes = None
         self.converged = None
         self.values = None
+        self.variables = None
         self.clf = None
 
     @property
@@ -147,6 +149,7 @@ class AuthorPagerank(object):
                     max_attributes[i] = a[i]
 
         variables = [("f{}".format(i), 0, 2 * max_attributes[i]) for i in range(attribute_count)]
+        self.variables = variables
         diagram_variables = []
         for prefix in ("r", "c"):
             diagram_variables.append([("{}_{}".format(prefix, name), lb, ub) for name, lb, ub in variables])
@@ -197,10 +200,6 @@ class AuthorPagerank(object):
         return mass_evaluate(converged.diagram, assignments)
 
     def get_decision_tree_accuracy(self, samples):
-        true_positive = 0
-        positive = 0
-        true_negative = 0
-        negative = 0
         pairs = set()
         examples = []
 
@@ -218,9 +217,56 @@ class AuthorPagerank(object):
             control[i] = 1 if a2 in self.neighbors[a1] else 0
             examples.append(self.attributes[a1] + self.attributes[a2])
 
+        return self._compute_accuracy(examples, control)
+
+    def get_balanced_tree_accuracy(self, samples):
+        positive = negative = samples / 2
+
+        pairs = set()
+        examples = []
+        control = numpy.zeros(samples)
+
+        def select_negative():
+            a1 = random.randint(0, len(self.authors) - 1)
+            a2 = random.randint(0, len(self.authors) - 1)
+            if a1 == a2 or (a1, a2) in pairs or a2 in self.neighbors[a1]:
+                return select_negative()
+            return a1, a2
+
+        def select_positive():
+            author1 = random.randint(0, len(self.authors) - 1)
+            neighbors = self.neighbors[author1]
+            if len(neighbors) == 0:
+                return select_positive()
+            author2 = neighbors[random.randint(0, len(neighbors) - 1)]
+            if author1 == author2 or (author1, author2) in pairs:
+                return select_positive()
+            return author1, author2
+
+        for i in range(negative):
+            a1, a2 = select_negative()
+            pairs.add((a1, a2))
+            control[i] = 0
+            examples.append(self.attributes[a1] + self.attributes[a2])
+
+        for i in range(positive):
+            a1, a2 = select_positive()
+            pairs.add((a1, a2))
+            control[negative + i] = 1
+            examples.append(self.attributes[a1] + self.attributes[a2])
+
+        return self._compute_accuracy(examples, control)
+
+    def _compute_accuracy(self, examples, control):
+        assert len(examples) == len(control)
+        true_positive = 0
+        positive = 0
+        true_negative = 0
+        negative = 0
+
         predicted = self.clf.predict(examples)
 
-        for i in range(samples):
+        for i in range(len(examples)):
             if control[i] == 1:
                 if predicted[i] == 1:
                     true_positive += 1
@@ -232,7 +278,6 @@ class AuthorPagerank(object):
 
         # total = positive + negative
         return true_positive, true_negative, positive, negative
-
 
 def count_links(neighbors):
     count = 0
@@ -267,8 +312,8 @@ def calculate_ground_pagerank(timer, authors, neighbors, damping_factor, delta, 
     from scipy.sparse import coo_matrix
     from sparse import simple
     adjacency_matrix = coo_matrix((data, (row, col)), shape=(n, n), dtype=numpy.float)
-    timer.start("Computing sparse page-rank")
-    values_ground, iterations = simple(adjacency_matrix, damping_factor, delta, iterations, norm=1)
+    # timer.start("Computing sparse page-rank")
+    # values_ground, iterations = simple(adjacency_matrix, damping_factor, delta, iterations, norm=1)
 
     from sparse_pagerank_networkx import pagerank_scipy
     timer.start("Computing reference page-rank (networkx)")
@@ -289,7 +334,7 @@ def calculate_ground_pagerank(timer, authors, neighbors, damping_factor, delta, 
     #     else:
     #         print("check")
     # exit()
-    return values_ground  # [v[0, 0] for v in values_test]
+    return values_ground2  # values_ground  # [v[0, 0] for v in values_test]
 
 
 def export_ground_pagerank(values_ground, path):
@@ -337,6 +382,7 @@ class CitationExperiment(object):
         self.iterations = None
         self.lifted_speed = None
         self.ground_speed = None
+        self.leaf_cutoff_rate = None
 
     @property
     def density(self):
@@ -351,7 +397,7 @@ class CitationExperiment(object):
         return self.true_negative / float(self.negative)
 
 
-def main(size, delta, iterations, damping_factor, copy_rate, discrete):
+def main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth=5, leaf_cutoff_rate=0.001):
     """
 
     :rtype: CitationExperiment
@@ -364,7 +410,6 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete):
     diagram_file = "diagram_{}".format(size)
     converged_file = "converged_{}".format(size)
     values_ground_file = "ground_value_{}.txt".format(size)
-    tree_depth = 5
     # pool_file = "pool_{}.txt".format(size)
 
     cache_authors = True
@@ -378,6 +423,7 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete):
     experiment.damping_factor = damping_factor
     experiment.copy_rate = copy_rate
     experiment.tree_depth = tree_depth
+    experiment.leaf_cutoff_rate = leaf_cutoff_rate
 
     if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file):
         timer.start("Importing authors from {} to compute subset".format(authors_root_file))
@@ -401,14 +447,15 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete):
 
     timer.start("Computing lifted values")
     task = AuthorPagerank(authors, neighbors, sum_papers)
+    options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
     task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
                           tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
-                          discrete=discrete, options={"max_depth": tree_depth, "min_samples_leaf": size / 1000})
+                          discrete=discrete, options=options)
     values_lifted = task.values
     experiment.lifted_speed = timer.stop()
 
     timer.start("Computing decision tree accuracy")
-    true_positive, true_negative, positive, negative = task.get_decision_tree_accuracy(1000000)
+    true_positive, true_negative, positive, negative = task.get_balanced_tree_accuracy(100000)
     timer.log("TP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
     experiment.true_positive = true_positive
     experiment.positive = positive
@@ -435,6 +482,10 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete):
     timer.log("KT = {}".format(tau))
     timer.stop()
     experiment.kendall_tau = tau
+
+    timer.start("Calculating maximum")
+    timer.log(find_optimal_conditions(task.converged.diagram, task.variables))
+    timer.stop()
 
     # histogram_lifted = make_histogram(values_lifted)
     # histogram_ground = make_histogram(values_ground)
