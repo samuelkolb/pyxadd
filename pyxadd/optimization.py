@@ -1,7 +1,10 @@
 import picos
 from pyxadd.diagram import TerminalNode, InternalNode
+from pyxadd.operation import Operation, LogicalOr, LogicalAnd
 from pyxadd.sympy_conversion import SympyConverter
-from pyxadd.walk import BottomUpWalker
+from pyxadd.test import LinearTest
+from pyxadd.view import export
+from pyxadd.walk import BottomUpWalker, walk_leaves, DepthFirstWalker
 
 
 class ParentsWalker(BottomUpWalker):
@@ -114,4 +117,80 @@ def find_optimum(diagram, maximize=True, m=1000000):
 
     problem.solve(verbose=False)
     return s.value[0, 0], {v: variables[v].value[0, 0] for v in assignment_variables}
+
+
+class NodeFinder(BottomUpWalker):
+    def __init__(self, node_id, diagram, profile=None):
+        BottomUpWalker.__init__(self, diagram, profile)
+        self.node_id = node_id
+
+    def visit_terminal(self, terminal_node):
+        if terminal_node.node_id == self.node_id:
+            return self.diagram.pool.terminal(1)
+        else:
+            return self.diagram.pool.terminal(0)
+
+    def visit_internal(self, internal_node, true_message, false_message):
+        pool = self.diagram.pool
+        one = pool.terminal(1)
+        zero = pool.terminal(0)
+        if internal_node.node_id == self.node_id:
+            return one
+        return pool.apply(LogicalOr,
+                          pool.apply(LogicalAnd, pool.internal(internal_node.test, one, zero), true_message),
+                          pool.apply(LogicalAnd, pool.internal(internal_node.test, zero, one), false_message))
+
+
+class IntervalFinder(DepthFirstWalker):
+    def __init__(self, variables, diagram):
+        DepthFirstWalker.__init__(self, diagram)
+        self.variables = variables
+        self.bounds = []
+
+    def visit_internal(self, internal_node, parent_message):
+        if parent_message is None:
+            parent_message = self.variables
+        test = internal_node.test
+        if isinstance(test, LinearTest):
+            true_message = [(var,) + test.update_bounds(var, lb, ub, True) for var, lb, ub in parent_message]
+            false_message = [(var,) + test.update_bounds(var, lb, ub, False) for var, lb, ub in parent_message]
+        else:
+            raise RuntimeError("Currently non-linear tests (e.g. boolean tests) are unsupported")
+        return true_message, false_message
+
+    def visit_terminal(self, terminal_node, parent_message):
+        """
+        :type terminal_node: TerminalNode
+        :type parent_message: tuple[]
+        """
+        if parent_message is None:
+            parent_message = self.variables
+        if terminal_node.evaluate({}) == 1:
+            self.bounds.append(parent_message)
+
+    def walk(self):
+        DepthFirstWalker.walk(self)
+        return self.bounds
+
+
+def find_optimal_conditions(diagram, variables, maximize=True):
+    def better(value1, value2):
+        if maximize:
+            return value1 > value2
+        else:
+            return value1 < value2
+
+    class Optimal:
+        value = None
+        node_id = None
+
+    def leaf_walker(pool, node):
+        value = node.evaluate({})
+        if Optimal.value is None or better(value, Optimal.value):
+            Optimal.value = value
+            Optimal.node_id = node.node_id
+
+    walk_leaves(leaf_walker, diagram)
+    path_diagram = diagram.pool.diagram(NodeFinder(Optimal.node_id, diagram).walk())
+    return IntervalFinder(variables, path_diagram).walk()
 

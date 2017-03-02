@@ -371,6 +371,8 @@ class LinearTest(Test):
     def update_bounds(self, var, lb, ub, test=True):
         if len(self.operator.variables) != 1:
             raise RuntimeError("Test does not have exactly one variable (it has {})".format(self.operator.variables))
+        if var not in self.operator.variables:
+            return lb, ub
         if test:
             return self.operator.update_bounds(var, lb, ub)
         else:
