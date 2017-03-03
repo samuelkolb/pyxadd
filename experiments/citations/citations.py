@@ -32,6 +32,15 @@ def import_authors(path):
     return authors, lookup, sum_papers
 
 
+def import_median_years(authors, path):
+    lookup_median_years = dict()
+    with open(path) as f:
+        for line in f:
+            author, median_year = line.rstrip("\n").split(", ")
+            lookup_median_years[author] = int(median_year)
+    return list(lookup_median_years[author] for author in authors)
+
+
 def import_neighbors(authors, lookup, path):
     neighbors = [[] for _ in authors]
     with open(path) as f:
@@ -45,7 +54,8 @@ def import_neighbors(authors, lookup, path):
     return neighbors
 
 
-def export_subset(size, complete_authors, complete_neighbors, complete_sum_papers, authors_file, coauthors_file):
+def export_subset(size, complete_authors, complete_neighbors, complete_sum_papers, complete_median_years, authors_file,
+                  coauthors_file, median_years_file):
     if size < len(complete_authors):
         indices = random.sample(range(len(complete_authors)), size)
     else:
@@ -54,6 +64,7 @@ def export_subset(size, complete_authors, complete_neighbors, complete_sum_paper
     subset_authors = [complete_authors[i] for i in indices]
     subset_lookup = {subset_authors[i]: i for i in range(len(subset_authors))}
     subset_sum_papers = [complete_sum_papers[i] for i in indices]
+    subset_median_years = [complete_median_years[i] for i in indices]
     subset_neighbors = [
         [subset_lookup[complete_authors[n]] for n in author_neighbors if n in index_set]
         for author_neighbors in [complete_neighbors[i] for i in indices]
@@ -62,6 +73,10 @@ def export_subset(size, complete_authors, complete_neighbors, complete_sum_paper
     with open(authors_file, "w") as f:
         for i in range(len(subset_authors)):
             print("{}, {}".format(subset_authors[i], subset_sum_papers[i]), file=f)
+
+    with open(median_years_file, "w") as f:
+        for i in range(len(subset_authors)):
+            print("{}, {}".format(subset_authors[i], subset_median_years[i]), file=f)
 
     with open(coauthors_file, "w") as f:
         for i in range(len(subset_authors)):
@@ -84,12 +99,12 @@ def copy_neighbors(neighbors, copy_rate):
     return new_list
 
 
-
 class AuthorPagerank(object):
-    def __init__(self, authors, neighbors, sum_papers):
+    def __init__(self, authors, neighbors, sum_papers, median_years):
         self.authors = authors
         self.neighbors = neighbors
         self.sum_papers = sum_papers
+        self.median_years = median_years
         self.attributes = None
         self.converged = None
         self.values = None
@@ -98,7 +113,7 @@ class AuthorPagerank(object):
 
     @property
     def attribute_count(self):
-        return 2
+        return 3
 
     @property
     def variable_names(self):
@@ -109,14 +124,14 @@ class AuthorPagerank(object):
         if self.converged is not None:
             return
 
-        authors, neighbors, sum_papers = self.authors, self.neighbors, self.sum_papers
+        authors, neighbors, sum_papers, median_years = self.authors, self.neighbors, self.sum_papers, self.median_years
 
         timer.start("Computing attributes")
         sum_neighbors = []
         for i in range(len(authors)):
             sum_neighbors.append(len(neighbors[i]))
 
-        attributes = zip(sum_papers, sum_neighbors)
+        attributes = zip(sum_papers, sum_neighbors, self.median_years)
         self.attributes = attributes
         # print(attributes)
 
@@ -141,14 +156,17 @@ class AuthorPagerank(object):
                 labels.append(0)
                 forbidden.add((i, j))
 
-        attribute_count = 2
+        attribute_count = self.attribute_count
         max_attributes = list(0 for _ in range(attribute_count))
+        min_attributes = list(0 for _ in range(attribute_count))
         for a in attributes:
             for i in range(attribute_count):
                 if a[i] > max_attributes[i]:
                     max_attributes[i] = a[i]
+                if a[i] < min_attributes[i]:
+                    min_attributes[i] = a[i]
 
-        variables = [("f{}".format(i), 0, 2 * max_attributes[i]) for i in range(attribute_count)]
+        variables = [("f{}".format(i), min_attributes[i], int(1.2 * max_attributes[i])) for i in range(attribute_count)]
         self.variables = variables
         diagram_variables = []
         for prefix in ("r", "c"):
@@ -404,8 +422,12 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_dept
     """
     authors_root_file = "authors.txt"
     coauthors_root_file = "coauthors.txt"
+    median_years_root_file = "median_years.txt"
+
     authors_file = "authors_{}.txt".format(size)
     coauthors_file = "coauthors_{}.txt".format(size)
+    median_years_file = "median_years_{}.txt".format(size)
+
     tree_file = "tree_{}.dot".format(size)
     diagram_file = "diagram_{}".format(size)
     converged_file = "converged_{}".format(size)
@@ -425,16 +447,23 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_dept
     experiment.tree_depth = tree_depth
     experiment.leaf_cutoff_rate = leaf_cutoff_rate
 
-    if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file):
+    if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file)\
+            or not os.path.isfile(median_years_file):
         timer.start("Importing authors from {} to compute subset".format(authors_root_file))
         authors, lookup, sum_papers = import_authors(authors_root_file)
+        timer.start("Importing median years from {} to compute subset".format(median_years_root_file))
+        median_years = import_median_years(authors, median_years_root_file)
         timer.start("Importing coauthors from {} to compute subset".format(coauthors_root_file))
         neighbors = import_neighbors(authors, lookup, coauthors_root_file)
         timer.start("Exporting author and coauthor files to {} and {}".format(authors_file, coauthors_file))
-        export_subset(size, authors, neighbors, sum_papers, authors_file, coauthors_file)
+        export_subset(size, authors, neighbors, sum_papers, median_years, authors_file, coauthors_file,
+                      median_years_file)
 
     timer.start("Importing authors from {}".format(authors_file))
     authors, lookup, sum_papers = import_authors(authors_file)
+
+    timer.start("Importing median years from {}".format(median_years_file))
+    median_years = import_median_years(authors, median_years_file)
 
     timer.start("Importing coauthors from {}".format(coauthors_file))
     neighbors = import_neighbors(authors, lookup, coauthors_file)
@@ -446,7 +475,7 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_dept
     experiment.links = count_links(neighbors)
 
     timer.start("Computing lifted values")
-    task = AuthorPagerank(authors, neighbors, sum_papers)
+    task = AuthorPagerank(authors, neighbors, sum_papers, median_years)
     options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
     task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
                           tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,

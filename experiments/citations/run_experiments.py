@@ -49,10 +49,10 @@ def main():
     # for copy_rate in numpy.linspace(0, 1, 11):
     # for leaf_cutoff_rate in numpy.linspace(0.0001, 0.1001, 21):
     # for size in range(100000, 1100000, 100000):
-    # for tree_depth in range(1, 9):
     # for leaf_cutoff_rate in numpy.linspace(0.001, 0.1001, 21):
     # for damping_factor in numpy.linspace(0, 1, 21):
-    experiments.append(citation_main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth,
+    for iterations in range(10, 110, 10):
+        experiments.append(citation_main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth,
                                          leaf_cutoff_rate))
 
     print()
