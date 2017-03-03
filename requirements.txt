@@ -1,6 +1,5 @@
 cvxopt==1.1.8
 cycler==0.10.0
-gurobipy==7.0.1
 infix==1.1
 matplotlib==1.5.3
 mpmath==0.19
