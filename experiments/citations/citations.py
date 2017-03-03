@@ -424,15 +424,15 @@ def main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_dept
     coauthors_root_file = "coauthors.txt"
     median_years_root_file = "median_years.txt"
 
-    authors_file = "authors_{}.txt".format(size)
-    coauthors_file = "coauthors_{}.txt".format(size)
-    median_years_file = "median_years_{}.txt".format(size)
+    authors_file = "temp/authors_{}.txt".format(size)
+    coauthors_file = "temp/coauthors_{}.txt".format(size)
+    median_years_file = "temp/median_years_{}.txt".format(size)
 
-    tree_file = "tree_{}.dot".format(size)
-    diagram_file = "diagram_{}".format(size)
-    converged_file = "converged_{}".format(size)
-    values_ground_file = "ground_value_{}.txt".format(size)
-    # pool_file = "pool_{}.txt".format(size)
+    tree_file = "temp/tree_{}.dot".format(size)
+    diagram_file = "temp/diagram_{}".format(size)
+    converged_file = "temp/converged_{}".format(size)
+    values_ground_file = "temp/ground_value_{}.txt".format(size)
+    # pool_file = "temp/pool_{}.txt".format(size)
 
     cache_authors = True
     cache_ground_values = False
