@@ -1,3 +1,4 @@
+pysmt
 cvxopt==1.1.8
 cycler==0.10.0
 infix==1.1
