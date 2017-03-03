@@ -1,4 +1,3 @@
-from bitarray import bitarray
 import numpy
 
 from pyxadd.walk import DepthFirstWalker
