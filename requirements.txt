@@ -1,0 +1,17 @@
+cvxopt==1.1.8
+cycler==0.10.0
+gurobipy==7.0.1
+infix==1.1
+matplotlib==1.5.3
+mpmath==0.19
+numpy==1.11.1
+ordered-set==2.0.1
+PICOS==1.1.1
+PuLP==1.6.1
+pycallgraph==1.0.1
+python-dateutil==2.5.3
+pytz==2016.6.1
+scikit-learn==0.18.1
+scipy==0.18.1
+six==1.10.0
+sympy==1.0
