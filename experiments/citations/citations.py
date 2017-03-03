@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import json
 import random
 
 import os
@@ -414,112 +415,162 @@ class CitationExperiment(object):
     def accuracy_negative(self):
         return self.true_negative / float(self.negative)
 
+    def export_to_dict(self):
+        return {
+            "size": self.size,
+            "copy_rate": self.copy_rate,
+            "links": self.links,
+            "damping_factor": self.damping_factor,
+            "tree_depth": self.tree_depth,
+            "true_positive": self.true_positive,
+            "positive": self.positive,
+            "true_negative": self.true_negative,
+            "negative": self.negative,
+            "kendall_tau": self.kendall_tau,
+            "iterations": self.iterations,
+            "lifted_speed": self.lifted_speed,
+            "ground_speed": self.ground_speed,
+            "leaf_cutoff_rate": self.leaf_cutoff_rate,
+        }
 
-def main(size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth=5, leaf_cutoff_rate=0.001):
-    """
+    @staticmethod
+    def import_from_dict(dictionary):
+        experiment = CitationExperiment()
+        experiment.size = int(dictionary["size"])
+        experiment.copy_rate = float(dictionary["copy_rate"])
+        experiment.links = int(dictionary["links"])
+        experiment.damping_factor = float(dictionary["damping_factor"])
+        experiment.tree_depth = int(dictionary["tree_depth"])
+        experiment.true_positive = int(dictionary["true_positive"])
+        experiment.positive = int(dictionary["positive"])
+        experiment.true_negative = int(dictionary["true_negative"])
+        experiment.negative = int(dictionary["negative"])
+        experiment.kendall_tau = float(dictionary["kendall_tau"])
+        experiment.iterations = int(dictionary["iterations"])
+        experiment.lifted_speed = float(dictionary["lifted_speed"])
+        experiment.ground_speed = float(dictionary["ground_speed"])
+        experiment.leaf_cutoff_rate = float(dictionary["leaf_cutoff_rate"])
+        return experiment
 
-    :rtype: CitationExperiment
-    """
+
+class ExperimentRunner(object):
     authors_root_file = "authors.txt"
     coauthors_root_file = "coauthors.txt"
     median_years_root_file = "median_years.txt"
 
-    authors_file = "temp/authors_{}.txt".format(size)
-    coauthors_file = "temp/coauthors_{}.txt".format(size)
-    median_years_file = "temp/median_years_{}.txt".format(size)
+    def __init__(self, directory="temp"):
+        self.directory = directory
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
-    tree_file = "temp/tree_{}.dot".format(size)
-    diagram_file = "temp/diagram_{}".format(size)
-    converged_file = "temp/converged_{}".format(size)
-    values_ground_file = "temp/ground_value_{}.txt".format(size)
-    # pool_file = "temp/pool_{}.txt".format(size)
+        self.experiments = []
 
-    cache_authors = True
-    cache_ground_values = False
+    def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate):
+        authors_file = "{}/authors_{}.txt".format(self.directory, size)
+        coauthors_file = "{}/coauthors_{}.txt".format(self.directory, size)
+        median_years_file = "{}/median_years_{}.txt".format(self.directory, size)
 
-    timer = Timer()
+        tree_file = "{}/tree_{}.dot".format(self.directory, size)
+        diagram_file = "{}/diagram_{}".format(self.directory, size)
+        converged_file = "{}/converged_{}".format(self.directory, size)
+        values_ground_file = "{}/ground_value_{}.txt".format(self.directory, size)
+        # pool_file = "temp/pool_{}.txt".format(size)
 
-    experiment = CitationExperiment()
-    experiment.size = size
-    experiment.iterations = iterations
-    experiment.damping_factor = damping_factor
-    experiment.copy_rate = copy_rate
-    experiment.tree_depth = tree_depth
-    experiment.leaf_cutoff_rate = leaf_cutoff_rate
+        cache_authors = True
+        cache_ground_values = False
 
-    if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file)\
-            or not os.path.isfile(median_years_file):
-        timer.start("Importing authors from {} to compute subset".format(authors_root_file))
-        authors, lookup, sum_papers = import_authors(authors_root_file)
-        timer.start("Importing median years from {} to compute subset".format(median_years_root_file))
-        median_years = import_median_years(authors, median_years_root_file)
-        timer.start("Importing coauthors from {} to compute subset".format(coauthors_root_file))
-        neighbors = import_neighbors(authors, lookup, coauthors_root_file)
-        timer.start("Exporting author and coauthor files to {} and {}".format(authors_file, coauthors_file))
-        export_subset(size, authors, neighbors, sum_papers, median_years, authors_file, coauthors_file,
-                      median_years_file)
+        timer = Timer()
 
-    timer.start("Importing authors from {}".format(authors_file))
-    authors, lookup, sum_papers = import_authors(authors_file)
+        experiment = CitationExperiment()
+        experiment.size = size
+        experiment.iterations = iterations
+        experiment.damping_factor = damping_factor
+        experiment.copy_rate = copy_rate
+        experiment.tree_depth = tree_depth
+        experiment.leaf_cutoff_rate = leaf_cutoff_rate
 
-    timer.start("Importing median years from {}".format(median_years_file))
-    median_years = import_median_years(authors, median_years_file)
+        if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file)\
+                or not os.path.isfile(median_years_file):
+            timer.start("Importing authors from {} to compute subset".format(self.authors_root_file))
+            authors, lookup, sum_papers = import_authors(self.authors_root_file)
+            timer.start("Importing median years from {} to compute subset".format(self.median_years_root_file))
+            median_years = import_median_years(authors, self.median_years_root_file)
+            timer.start("Importing coauthors from {} to compute subset".format(self.coauthors_root_file))
+            neighbors = import_neighbors(authors, lookup, self.coauthors_root_file)
+            timer.start("Exporting author and coauthor files to {} and {}".format(authors_file, coauthors_file))
+            export_subset(size, authors, neighbors, sum_papers, median_years, authors_file, coauthors_file,
+                          median_years_file)
 
-    timer.start("Importing coauthors from {}".format(coauthors_file))
-    neighbors = import_neighbors(authors, lookup, coauthors_file)
+        timer.start("Importing authors from {}".format(authors_file))
+        authors, lookup, sum_papers = import_authors(authors_file)
 
-    timer.start("Copy co-authors (copy rate={})".format(copy_rate))
-    neighbors = copy_neighbors(neighbors, copy_rate)
+        timer.start("Importing median years from {}".format(median_years_file))
+        median_years = import_median_years(authors, median_years_file)
 
-    timer.start("Counting links")
-    experiment.links = count_links(neighbors)
+        timer.start("Importing coauthors from {}".format(coauthors_file))
+        neighbors = import_neighbors(authors, lookup, coauthors_file)
 
-    timer.start("Computing lifted values")
-    task = AuthorPagerank(authors, neighbors, sum_papers, median_years)
-    options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
-    task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
-                          tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
-                          discrete=discrete, options=options)
-    values_lifted = task.values
-    experiment.lifted_speed = timer.stop()
+        timer.start("Copy co-authors (copy rate={})".format(copy_rate))
+        neighbors = copy_neighbors(neighbors, copy_rate)
 
-    timer.start("Computing decision tree accuracy")
-    true_positive, true_negative, positive, negative = task.get_balanced_tree_accuracy(100000)
-    timer.log("TP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
-    experiment.true_positive = true_positive
-    experiment.positive = positive
-    experiment.true_negative = true_negative
-    experiment.negative = negative
+        timer.start("Counting links")
+        experiment.links = count_links(neighbors)
 
-    timer.start("Exporting converged diagram to {}".format(converged_file))
-    task.converged.export(converged_file)
+        timer.start("Computing lifted values")
+        task = AuthorPagerank(authors, neighbors, sum_papers, median_years)
+        options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
+        task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
+                              tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
+                              discrete=discrete, options=options)
+        values_lifted = task.values
+        experiment.lifted_speed = timer.stop()
 
-    if not cache_ground_values or not os.path.isfile(values_ground_file):
-        timer.start("Calculating ground pagerank")
-        ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors, damping_factor=damping_factor,
-                                                    delta=delta, iterations=iterations)
-        experiment.ground_speed = timer.stop()
+        timer.start("Computing decision tree accuracy")
+        true_positive, true_negative, positive, negative = task.get_balanced_tree_accuracy(100000)
+        timer.log("TP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
+        experiment.true_positive = true_positive
+        experiment.positive = positive
+        experiment.true_negative = true_negative
+        experiment.negative = negative
 
-        timer.start("Exporting ground pagerank to {}".format(values_ground_file))
-        export_ground_pagerank(ground_pagerank, values_ground_file)
+        timer.start("Exporting converged diagram to {}".format(converged_file))
+        task.converged.export(converged_file)
 
-    timer.start("Importing ground pagerank from {}".format(values_ground_file))
-    values_ground = import_ground_value(values_ground_file)
+        if not cache_ground_values or not os.path.isfile(values_ground_file):
+            timer.start("Calculating ground pagerank")
+            ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors, damping_factor=damping_factor,
+                                                        delta=delta, iterations=iterations)
+            experiment.ground_speed = timer.stop()
 
-    timer.start("Calculating kendall tau correlation coefficient")
-    tau, _ = stats.kendalltau(values_lifted, values_ground)
-    timer.log("KT = {}".format(tau))
-    timer.stop()
-    experiment.kendall_tau = tau
+            timer.start("Exporting ground pagerank to {}".format(values_ground_file))
+            export_ground_pagerank(ground_pagerank, values_ground_file)
 
-    timer.start("Calculating maximum")
-    timer.log(find_optimal_conditions(task.converged.diagram, task.variables))
-    timer.stop()
+        timer.start("Importing ground pagerank from {}".format(values_ground_file))
+        values_ground = import_ground_value(values_ground_file)
 
-    # histogram_lifted = make_histogram(values_lifted)
-    # histogram_ground = make_histogram(values_ground)
+        timer.start("Calculating kendall tau correlation coefficient")
+        tau, _ = stats.kendalltau(values_lifted, values_ground)
+        timer.log("KT = {}".format(tau))
+        timer.stop()
+        experiment.kendall_tau = tau
 
-    # print(histogram_lifted)
-    # print(histogram_ground)
+        timer.start("Calculating maximum")
+        timer.log(find_optimal_conditions(task.converged.diagram, task.variables))
+        timer.stop()
 
-    return experiment
+        # histogram_lifted = make_histogram(values_lifted)
+        # histogram_ground = make_histogram(values_ground)
+
+        # print(histogram_lifted)
+        # print(histogram_ground)
+
+        self.experiments.append(experiment)
+        return experiment
+
+    def reset(self):
+        self.experiments = []
+
+    def export_experiments(self):
+        output_file = "{}/output_{}.txt".format(self.directory, time.strftime("%Y%m%d_%H%M%S"))
+        with open(output_file, "w") as stream:
+            stream.write(json.dumps([experiment.export_to_dict() for experiment in self.experiments]))
