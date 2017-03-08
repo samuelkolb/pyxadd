@@ -2,9 +2,10 @@ from experiments.pagerank import pagerank
 from pyxadd.order import order
 from pyxadd.diagram import Pool, Ordering
 from pyxadd.matrix.matrix import Matrix
+from pyxadd.timer import Timer
 
 size = 500000
-pool_file = "pool_{}.txt".format(size)
+pool_file = "temp/pool_{}.txt".format(size)
 root_id = 1663
 
 variables = [('f0', 0, 1658), ('f1', 0, 964)]
@@ -26,7 +27,10 @@ class CustomOrdering(Ordering):
         pass
 
 
-exported_pool.change_order(CustomOrdering())
-reordered_matrix = Matrix(order(diagram), row_vars, col_vars)
+# exported_pool.change_order(CustomOrdering())
+# reordered_matrix = Matrix(order(diagram), row_vars, col_vars)
 
-pagerank(matrix, 0.85, variables, iterations=2, delta=0, norm=1)
+timer = Timer()
+timer.start("Calculating pagerank")
+pagerank(matrix, 0.85, variables, iterations=3, delta=0, norm=1)
+timer.stop()
