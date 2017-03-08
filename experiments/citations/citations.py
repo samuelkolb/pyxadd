@@ -69,7 +69,7 @@ def export_subset(size, complete_authors, complete_neighbors, complete_sum_paper
     subset_neighbors = [
         [subset_lookup[complete_authors[n]] for n in author_neighbors if n in index_set]
         for author_neighbors in [complete_neighbors[i] for i in indices]
-    ]
+        ]
 
     with open(authors_file, "w") as f:
         for i in range(len(subset_authors)):
@@ -111,6 +111,9 @@ class AuthorPagerank(object):
         self.values = None
         self.variables = None
         self.clf = None
+        self.learning_time = None
+        self.pagerank_time = None
+        self.grounding_time = None
 
     @property
     def attribute_count(self):
@@ -127,6 +130,8 @@ class AuthorPagerank(object):
 
         authors, neighbors, sum_papers, median_years = self.authors, self.neighbors, self.sum_papers, self.median_years
 
+        learning_time = 0
+
         timer.start("Computing attributes")
         sum_neighbors = []
         for i in range(len(authors)):
@@ -135,6 +140,7 @@ class AuthorPagerank(object):
         attributes = zip(sum_papers, sum_neighbors, self.median_years)
         self.attributes = attributes
         # print(attributes)
+        learning_time += timer.stop()
 
         timer.start("Computing learning examples and labels")
         examples = []
@@ -176,10 +182,12 @@ class AuthorPagerank(object):
 
         examples = [attributes[i] + attributes[j] for i, j in examples]
         # print("\n".join(list(", ".join((str(e) for e in examples[i])) + ": " + str(labels[i]) for i in range(len(examples)))))
+        learning_time += timer.stop()
 
         timer.start("Learning decision tree")
         clf = learn_decision_tree(examples, labels, options)
         self.clf = clf
+        learning_time += timer.stop()
 
         if tree_file is not None:
             timer.start("Exporting decision tree to {}".format(tree_file))
@@ -190,6 +198,8 @@ class AuthorPagerank(object):
         for var in variables:
             xadd.pool.add_var(var[0], "int")
         matrix = Matrix(xadd, row_variables, column_variables).reduce()
+        learning_time += timer.stop()
+        self.learning_time = learning_time
 
         if diagram_file is not None:
             timer.start("Exporting diagram to {}".format(diagram_file))
@@ -207,9 +217,11 @@ class AuthorPagerank(object):
         converged, iterations = pagerank(matrix, damping_factor, variables, delta=delta, norm=1, iterations=iterations)
         self.converged = converged
         timer.log("Converged after {} iterations".format(iterations))
+        self.pagerank_time = timer.stop()
 
         timer.start("Computing values for given authors")
         self.values = self.compute_values(authors, attributes)
+        self.grounding_time = timer.stop()
 
     def compute_values(self, authors, attributes):
         converged, attribute_count, variables = self.converged, self.attribute_count, self.variable_names
@@ -297,6 +309,7 @@ class AuthorPagerank(object):
 
         # total = positive + negative
         return true_positive, true_negative, positive, negative
+
 
 def count_links(neighbors):
     count = 0
@@ -398,10 +411,16 @@ class CitationExperiment(object):
         self.true_negative = None
         self.negative = None
         self.kendall_tau = None
+        self.kt_ground_verification = None
+        self.kt_lifted_verification = None
         self.iterations = None
+        self.lifted_speed_learning = None
+        self.lifted_speed_pagerank = None
+        self.lifted_speed_grounding = None
         self.lifted_speed = None
         self.ground_speed = None
         self.leaf_cutoff_rate = None
+        self.verification_iterations = None
 
     @property
     def density(self):
@@ -415,6 +434,9 @@ class CitationExperiment(object):
     def accuracy_negative(self):
         return self.true_negative / float(self.negative)
 
+    def __repr__(self):
+        return repr(self.export_to_dict())
+
     def export_to_dict(self):
         return {
             "size": self.size,
@@ -427,10 +449,16 @@ class CitationExperiment(object):
             "true_negative": self.true_negative,
             "negative": self.negative,
             "kendall_tau": self.kendall_tau,
+            "kt_ground_verification": self.kt_ground_verification,
+            "kt_lifted_verification": self.kt_lifted_verification,
             "iterations": self.iterations,
+            "lifted_speed_learning": self.lifted_speed_learning,
+            "lifted_speed_pagerank": self.lifted_speed_pagerank,
+            "lifted_speed_grounding": self.lifted_speed_grounding,
             "lifted_speed": self.lifted_speed,
             "ground_speed": self.ground_speed,
             "leaf_cutoff_rate": self.leaf_cutoff_rate,
+            "verification_iterations": self.verification_iterations,
         }
 
     @staticmethod
@@ -446,10 +474,16 @@ class CitationExperiment(object):
         experiment.true_negative = int(dictionary["true_negative"])
         experiment.negative = int(dictionary["negative"])
         experiment.kendall_tau = float(dictionary["kendall_tau"])
+        experiment.kt_ground_verification = float(dictionary["kt_ground_verification"])
+        experiment.kt_lifted_verification = float(dictionary["kt_lifted_verification"])
         experiment.iterations = int(dictionary["iterations"])
+        experiment.lifted_speed_learning = float(dictionary["lifted_speed_learning"])
+        experiment.lifted_speed_pagerank = float(dictionary["lifted_speed_pagerank"])
+        experiment.lifted_speed_grounding = float(dictionary["lifted_speed_grounding"])
         experiment.lifted_speed = float(dictionary["lifted_speed"])
         experiment.ground_speed = float(dictionary["ground_speed"])
         experiment.leaf_cutoff_rate = float(dictionary["leaf_cutoff_rate"])
+        experiment.verification_iterations = int(dictionary["verification_iterations"])
         return experiment
 
 
@@ -473,6 +507,7 @@ class ExperimentRunner(object):
         tree_file = "{}/tree_{}.dot".format(self.directory, size)
         diagram_file = "{}/diagram_{}".format(self.directory, size)
         converged_file = "{}/converged_{}".format(self.directory, size)
+        values_ground_same_file = "{}/ground_value_same_{}.txt".format(self.directory, size)
         values_ground_file = "{}/ground_value_{}.txt".format(self.directory, size)
         # pool_file = "temp/pool_{}.txt".format(size)
 
@@ -488,8 +523,9 @@ class ExperimentRunner(object):
         experiment.copy_rate = copy_rate
         experiment.tree_depth = tree_depth
         experiment.leaf_cutoff_rate = leaf_cutoff_rate
+        experiment.verification_iterations = 100
 
-        if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file)\
+        if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file) \
                 or not os.path.isfile(median_years_file):
             timer.start("Importing authors from {} to compute subset".format(self.authors_root_file))
             authors, lookup, sum_papers = import_authors(self.authors_root_file)
@@ -524,6 +560,9 @@ class ExperimentRunner(object):
                               discrete=discrete, options=options)
         values_lifted = task.values
         experiment.lifted_speed = timer.stop()
+        experiment.lifted_speed_learning = task.learning_time
+        experiment.lifted_speed_pagerank = task.pagerank_time
+        experiment.lifted_speed_grounding = task.grounding_time
 
         timer.start("Computing decision tree accuracy")
         true_positive, true_negative, positive, negative = task.get_balanced_tree_accuracy(100000)
@@ -536,23 +575,46 @@ class ExperimentRunner(object):
         timer.start("Exporting converged diagram to {}".format(converged_file))
         task.converged.export(converged_file)
 
-        if not cache_ground_values or not os.path.isfile(values_ground_file):
-            timer.start("Calculating ground pagerank")
-            ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors, damping_factor=damping_factor,
+        if not cache_ground_values or not os.path.isfile(values_ground_same_file)\
+                or not os.path.isfile(values_ground_file):
+            timer.start("Calculating ground pagerank (same number of iterations {})".format(iterations))
+            ground_pagerank_same = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
+                                                        damping_factor=damping_factor,
                                                         delta=delta, iterations=iterations)
             experiment.ground_speed = timer.stop()
 
-            timer.start("Exporting ground pagerank to {}".format(values_ground_file))
+            timer.start("Exporting ground pagerank to {}".format(values_ground_same_file))
+            export_ground_pagerank(ground_pagerank_same, values_ground_same_file)
+
+            verification = experiment.verification_iterations
+            timer.start("Calculating ground pagerank (verification with {} iterations)".format(verification))
+            ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
+                                                        damping_factor=damping_factor,
+                                                        delta=delta, iterations=verification)
+
+            timer.start("Exporting verification ground pagerank to {}".format(values_ground_file))
             export_ground_pagerank(ground_pagerank, values_ground_file)
 
-        timer.start("Importing ground pagerank from {}".format(values_ground_file))
-        values_ground = import_ground_value(values_ground_file)
+        timer.start("Importing ground pagerank from {}".format(values_ground_same_file))
+        values_ground = import_ground_value(values_ground_same_file)
 
-        timer.start("Calculating kendall tau correlation coefficient")
+        timer.start("Importing ground verification pagerank from {}".format(values_ground_file))
+        values_verification = import_ground_value(values_ground_file)
+
+        timer.start("Calculating kendall tau correlation coefficient (ground-lifted)")
         tau, _ = stats.kendalltau(values_lifted, values_ground)
-        timer.log("KT = {}".format(tau))
-        timer.stop()
+        timer.log("KT = {} ((ground-lifted))".format(tau))
         experiment.kendall_tau = tau
+
+        timer.start("Calculating kendall tau correlation coefficient (ground-verification)")
+        tau, _ = stats.kendalltau(values_ground, values_verification)
+        timer.log("KT = {} (ground-verification)".format(tau))
+        experiment.kt_ground_verification = tau
+
+        timer.start("Calculating kendall tau correlation coefficient (lifted-verification)")
+        tau, _ = stats.kendalltau(values_lifted, values_verification)
+        timer.log("KT = {} (lifted-verification)".format(tau))
+        experiment.kt_lifted_verification = tau
 
         timer.start("Calculating maximum")
         timer.log(find_optimal_conditions(task.converged.diagram, task.variables))
@@ -574,3 +636,16 @@ class ExperimentRunner(object):
         output_file = "{}/output_{}.txt".format(self.directory, time.strftime("%Y%m%d_%H%M%S"))
         with open(output_file, "w") as stream:
             stream.write(json.dumps([experiment.export_to_dict() for experiment in self.experiments]))
+
+    def import_experiments(self, output_file):
+        path = "{}/{}".format(self.directory, output_file)
+        with open(path) as stream:
+            experiment_list = json.load(stream)
+            self.experiments = list(CitationExperiment.import_from_dict(experiment_dict)
+                                    for experiment_dict in experiment_list)
+
+    @staticmethod
+    def load_experiments(directory, output_file):
+        runner = ExperimentRunner(directory)
+        runner.import_experiments(output_file)
+        return runner
