@@ -56,6 +56,38 @@ class DepthFirstWalker(Walker):
             raise RuntimeError("Unexpected node type {}.".format(type(node)))
 
 
+class DepthFirstUniqueWalker(DepthFirstWalker):
+    def visit_terminal(self, terminal_node, parent_message):
+        raise NotImplementedError()
+
+    def visit_internal(self, internal_node, parent_message):
+        raise NotImplementedError()
+
+    def __init__(self, diagram):
+        DepthFirstWalker.__init__(self, diagram)
+        self._seen = None  # type: set
+
+    def walk(self):
+        """
+        Walks the diagram without computing a result. However, every node is only visited once.
+        """
+        self._seen = set()
+        DepthFirstWalker.walk(self)
+        self._seen = None
+
+    def _visit(self, node, message=None):
+        if isinstance(node, TerminalNode):
+            self.visit_terminal(node, message)
+        elif isinstance(node, InternalNode):
+            true_message, false_message = self.visit_internal(node, message)
+            if node.node_id not in self._seen:
+                self._seen.add(node.node_id)
+                self._visit(self._diagram.node(node.child_true), true_message)
+                self._visit(self._diagram.node(node.child_false), false_message)
+        else:
+            raise RuntimeError("Unexpected node type {}.".format(type(node)))
+
+
 class DownUpWalker(Walker):
     def visit_terminal(self, terminal_node, parent_message):
         """
@@ -100,14 +132,14 @@ class DownUpWalker(Walker):
             raise RuntimeError("Unexpected node type {}.".format(type(node)))
 
 
-class ParentsWalker(DepthFirstWalker):
+class ParentsWalker(DepthFirstUniqueWalker):
     def __init__(self, diagram):
-        DepthFirstWalker.__init__(self, diagram)
+        DepthFirstUniqueWalker.__init__(self, diagram)
         self._nodes = None
 
     def walk(self):
         self._nodes = {self._diagram.root_node.node_id: set()}
-        DepthFirstWalker.walk(self)
+        DepthFirstUniqueWalker.walk(self)
         nodes = self._nodes
         self._nodes = None
         return nodes
@@ -123,6 +155,8 @@ class ParentsWalker(DepthFirstWalker):
         if parent is not None:
             if internal_node.node_id not in self._nodes:
                 self._nodes[internal_node.node_id] = set()
+            if parent in self._nodes[internal_node.node_id]:
+                print("Already included as parent...")
             self._nodes[internal_node.node_id].add(parent)
 
 
