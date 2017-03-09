@@ -25,6 +25,10 @@ class SummationCache(DefaultCache):
             variable, node_id = var_node
             expression = pool.get_node(node_id).expression
             variables = {str(v): v for v in expression.free_symbols}
+
+            if len(variables) == 0:
+                return lambda lb, ub: (ub - lb + 1) * float(expression)
+
             v = variables[variable] if variable in variables else sympy.S(variable)
             # TODO add caching again
             try:
@@ -175,8 +179,12 @@ class SummationWalker(DownUpWalker):
         # print("Upper bounds: {}".format(upper_bounds))
 
         # print()
-
-        return self._build_terminal(terminal_node, 0, 1, lower_bounds, 0, 1, upper_bounds)
+        # from pyxadd.timer import Timer
+        # timer = Timer()
+        # timer.start("Building terminal {}".format(terminal_node.node_id))
+        converted_terminal = self._build_terminal(terminal_node, 0, 1, lower_bounds, 0, 1, upper_bounds)
+        # timer.stop()
+        return converted_terminal
 
     def _build_terminal(self, terminal_node, lb_i, lb_c, lower_bounds, ub_i, ub_c, upper_bounds):
         pool = self._diagram.pool
@@ -234,9 +242,16 @@ def sum_out(pool, root, variables):
     variables = list(str(v) for v in variables)
     diagram = pool.diagram(root)
     result = diagram
+    from pyxadd.timer import Timer
+    timer = Timer()
+    timer.start("Summing out")
+    per_var = timer.sub_time()
     for var in variables:
+        per_var.start("Summing out {}".format(var))
         result = pool.diagram(SummationWalker(result, var).walk())
+    timer.start("Checking output")
     _check_output(diagram, result, variables)
+    timer.stop()
     return result.root_node.node_id
 
 

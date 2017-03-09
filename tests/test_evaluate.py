@@ -25,7 +25,7 @@ class TestDiagram(unittest.TestCase):
 
         timer = Timer()
         timer.start("Creating random assignments")
-        for i in range(100000):
+        for i in range(10000):
             assignment = {}
             for name, lb, ub in self.vars1:
                 assignment[name] = random.randint(lb, ub)
@@ -33,13 +33,19 @@ class TestDiagram(unittest.TestCase):
 
         timer.start("Mass evaluate assignments")
         evaluated = mass_evaluate(self.diagram1, entries)
+        time_mass_evaluation = timer.stop()
 
         timer.start("Evaluate assignments individually")
         control = []
         for i in range(len(entries)):
             control.append(self.diagram1.evaluate(entries[i]))
+        time_individual_evaluation = timer.stop()
 
         timer.start("Control results")
         for i in range(len(entries)):
             self.assertAlmostEquals(control[i], evaluated[i], delta=10 ** -8)
         timer.stop()
+
+        self.assertTrue(time_mass_evaluation < time_individual_evaluation,
+                        "Mass evaluation ({}) slower than individual evaluation ({})"
+                        .format(time_mass_evaluation, time_individual_evaluation))
