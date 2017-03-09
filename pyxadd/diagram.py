@@ -347,8 +347,6 @@ class Pool:
         :type node_id: int
         :rtype: int
         """
-        # TODO warnings.warn("This method is slowish and does not check for non-boolean leaves.", DeprecationWarning)
-        # from pyxadd.walk import profile_exists
         node = self.get_node(node_id)
         if node.child_true == self.one_id and node.child_false == self.zero_id:
             return self.internal(node.test, self.zero_id, self.one_id)
