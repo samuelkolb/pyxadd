@@ -414,7 +414,7 @@ class BinaryTest(Test):
         return [self.var]
 
     def evaluate(self, assignment):
-        return bool(assignment(self.var))
+        return bool(assignment[self.var])
 
     def rename(self, translation):
         if self.var in translation:
