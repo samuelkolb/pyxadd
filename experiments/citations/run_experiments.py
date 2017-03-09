@@ -6,7 +6,7 @@ from experiments.citations.citations import ExperimentRunner, CitationExperiment
 from experiments.citations.print_experiments import print_experiments
 
 
-def main():
+def main(output="."):
     size = 500000
     delta = 0
     iterations = 60
@@ -19,7 +19,7 @@ def main():
     import uuid
     time_id = "{}_{}".format(time.strftime("%Y%m%d_%H%M%S"), str(uuid.uuid4()))
     print("Running experiments with ID {}".format(time_id))
-    directory = "temp_{}".format(time_id)
+    directory = "{}/temp_{}".format(output, time_id)
     runner = ExperimentRunner(directory)
 
     # for damping_factor in [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]:
