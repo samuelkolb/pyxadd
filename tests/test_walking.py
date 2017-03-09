@@ -2,6 +2,7 @@ import unittest
 import os
 from pyxadd.build import Builder
 from pyxadd.diagram import Diagram, InternalNode, Pool
+from pyxadd.order import is_ordered
 from pyxadd.test import LinearTest
 from pyxadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingProfile, BottomUpWalker, TopDownWalker
 from tests.export import Exporter
@@ -119,6 +120,9 @@ class TestWalking(unittest.TestCase):
         node3 = build.ite(test3, exp1, exp2)
         node2 = build.ite(test2, node3, exp1)
         node1 = build.ite(test1, node2, node3)
+
+        if not is_ordered(node1):
+            raise RuntimeError("Diagram not ordered")
 
         return node1
 
