@@ -7,10 +7,11 @@ class Timer(object):
 
     clean = True
 
-    def __init__(self, prefix=""):
+    def __init__(self, prefix="", precision=2):
         self.start_time = None
         self.sub_timer = None
         self.prefix = prefix
+        self.precision = precision
 
     def start(self, title):
         if self.start_time is not None:
@@ -31,7 +32,7 @@ class Timer(object):
                 self.sub_timer = None
             if Timer.clean:
                 print(self.prefix, end="")
-            print(" done (took {:.2f}s)".format(time_taken))
+            print((" done (took {:." + str(self.precision) + "f}s)").format(time_taken))
             Timer.clean = True
             return time_taken
         return None

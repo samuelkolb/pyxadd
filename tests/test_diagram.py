@@ -1,9 +1,12 @@
 import unittest
 
+from pyxadd import leaf_transform
 from pyxadd.build import Builder
 from pyxadd.diagram import Diagram, Pool
 from pyxadd.operation import Multiplication, Summation
+from pyxadd.order import is_ordered
 from pyxadd.test import LinearTest
+from pyxadd.timer import Timer
 from pyxadd.view import export
 from pyxadd.walk import WalkingProfile, ParentsWalker
 
@@ -99,6 +102,66 @@ class TestDiagram(unittest.TestCase):
         re_encoded = Pool.to_json(reconstructed)
         new_representation = json.loads(re_encoded)
         self.assertEquals(representation, new_representation)
+
+    def test_inversion(self):
+        pool = Pool()
+        build = Builder(pool)
+        build.vars("bool", "a", "b")
+        build.vars("int", "x")
+
+        test1 = build.test("a")
+        test2 = build.test("b")
+        test3 = build.test("x", "<=", 5)
+
+        node3 = build.ite(test3, 1, 0)
+        diagram = build.ite(test1, build.ite(test2, node3, 1), node3)
+
+        self.assertTrue(is_ordered(diagram))
+
+        def inversion1(root_id):
+            minus_one = pool.terminal("-1")
+            return pool.apply(Multiplication, pool.apply(Summation, root_id, minus_one), minus_one)
+
+        def transform(terminal_node, d):
+            if terminal_node.expression == 1:
+                return d.pool.zero_id
+            elif terminal_node.expression == 0:
+                return d.pool.one_id
+            else:
+                raise RuntimeError("Could not invert value {}".format(terminal_node.expression))
+
+        def inversion2(root_id):
+            to_invert = pool.diagram(root_id)
+            profile = WalkingProfile(diagram)
+            return leaf_transform.transform_leaves(transform, to_invert)
+
+        iterations = 1000
+        timer = Timer(precision=6)
+        timer.start("Legacy inversion")
+        for _ in range(iterations):
+            inversion1(diagram.root_id)
+        time_legacy = timer.stop()
+
+        inverted1 = pool.diagram(inversion1(diagram.root_id))
+
+        timer.start("New inversion")
+        for _ in range(iterations):
+            inversion2(diagram.root_id)
+        time_new = timer.stop()
+
+        inverted2 = pool.diagram(inversion2(diagram.root_id))
+
+        for a in [True, False]:
+            for b in [True, False]:
+                for x in range(10):
+                    assignment = {"a": a, "b": b, "x": x}
+                    self.assertNotEqual(diagram.evaluate(assignment), inverted1.evaluate(assignment))
+                    self.assertNotEqual(diagram.evaluate(assignment), inverted2.evaluate(assignment))
+
+        self.assertTrue(time_legacy > time_new, "New inversion ({}) not faster than legacy implementation ({})"
+                        .format(time_new, time_legacy))
+
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -144,8 +144,8 @@ class Pool:
         self._apply_cache = dict()
         self._ordering = ordering
         if not empty:
-            self.zero_id = self.terminal("0")
-            self.one_id = self.terminal("1")
+            self.zero_id = self.terminal(0)
+            self.one_id = self.terminal(1)
             self.pos_inf_id = self.terminal(sympy.oo)
             self.neg_inf_id = self.terminal(-sympy.oo)
 
@@ -332,6 +332,15 @@ class Pool:
         else:
             return self._ordering.test_smaller_eg(test_id1, test1, test_id2, test2)
 
+    @staticmethod
+    def _transform_invert(terminal_node, diagram):
+        if terminal_node.expression == 1:
+            return diagram.pool.zero_id
+        elif terminal_node.expression == 0:
+            return diagram.pool.one_id
+        else:
+            raise RuntimeError("Could not invert value {}".format(terminal_node.expression))
+
     def invert(self, node_id):
         """
         Performs a logical inversion on the diagram
@@ -340,8 +349,18 @@ class Pool:
         """
         # TODO warnings.warn("This method is slowish and does not check for non-boolean leaves.", DeprecationWarning)
         # from pyxadd.walk import profile_exists
-        minus_one = self.terminal("-1")
-        return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
+        node = self.get_node(node_id)
+        if node.child_true == self.one_id and node.child_false == self.zero_id:
+            return self.internal(node.test, self.zero_id, self.one_id)
+        elif node.child_true == self.zero_id and node.child_false == self.one_id:
+            return self.internal(node.test, self.one_id, self.zero_id)
+
+        # minus_one = self.terminal("-1")
+        # return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
+
+        to_invert = self.diagram(node_id)
+        from pyxadd import leaf_transform
+        return leaf_transform.transform_leaves(self._transform_invert, to_invert)
 
     def diagram(self, node_id):
         """
