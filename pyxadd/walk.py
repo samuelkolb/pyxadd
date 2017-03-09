@@ -301,6 +301,63 @@ class BottomUpWalker(Walker):
             return messages[node_id]
 
 
+class TopDownWalker(Walker):
+    def __init__(self, diagram):
+        Walker.__init__(self, diagram)
+        self.parents = ParentsWalker(diagram).walk()
+
+    def visit_internal(self, internal_node, messages):
+        """
+        Visits an internal node with the list of messages received from its parents.
+        :type internal_node: InternalNode
+        :type messages: object[]
+        :rtype: tuple
+        """
+        raise NotImplementedError()
+
+    def visit_terminal(self, terminal_node, messages):
+        """
+        Visits a terminal node with the list of messages received from its parents.
+        :type terminal_node: TerminalNode
+        :type messages: object[]
+        """
+        raise NotImplementedError()
+
+    def walk(self):
+        enabled = set()
+        enabled.add(self.diagram.root_id)
+        message_cache = {self.diagram.root_id: []}
+        counts = {}
+
+        def count(node_id):
+            if node_id not in counts:
+                counts[node_id] = 0
+            counts[node_id] += 1
+            if counts[node_id] == len(self.parents[node_id]):
+                enabled.add(node_id)
+
+        def message(node_id, the_message):
+            if node_id not in message_cache:
+                message_cache[node_id] = []
+            message_cache[node_id].append(the_message)
+
+        while len(enabled) > 0:
+            current_id = enabled.pop()
+            messages = message_cache[current_id]
+            node = self.diagram.pool.get_node(current_id)
+            if node.is_terminal():
+                self.visit_terminal(node, messages)
+            else:
+                message_true, message_false = self.visit_internal(node, messages)
+                count(node.child_true)
+                count(node.child_false)
+                message(node.child_true, message_true)
+                message(node.child_false, message_false)
+
+
+
+
+
 def profile_cache_is_enabled(pool):
     return pool.has_cache("profile")
 

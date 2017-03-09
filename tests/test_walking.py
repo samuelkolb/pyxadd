@@ -1,8 +1,10 @@
 import unittest
-
+import os
+from pyxadd.build import Builder
 from pyxadd.diagram import Diagram, InternalNode, Pool
 from pyxadd.test import LinearTest
-from pyxadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingProfile, BottomUpWalker
+from pyxadd.walk import DepthFirstWalker, DownUpWalker, ParentsWalker, WalkingProfile, BottomUpWalker, TopDownWalker
+from tests.export import Exporter
 
 
 class DummyDepthFirstWalker(DepthFirstWalker):
@@ -44,9 +46,51 @@ class DummyBottomUpWalker(BottomUpWalker):
         return true_message - false_message
 
 
+class Path(object):
+    def __init__(self, nodes=list()):
+        self.nodes = nodes
+
+    def add(self, node_id):
+        return Path(self.nodes + [node_id])
+
+    def __repr__(self):
+        return "Path({})".format(", ".join(map(str, self.nodes)))
+
+    def __eq__(self, other):
+        return isinstance(other, Path) and self.nodes == other.nodes
+
+    def __hash__(self):
+        return hash(tuple(self.nodes))
+
+
+class DummyTopDownWalker(TopDownWalker):
+    def __init__(self, diagram):
+        TopDownWalker.__init__(self, diagram)
+        self.paths = dict()  # maps node_ids to paths
+
+    def visit_internal(self, internal_node, messages):
+        self.register_paths(internal_node.node_id, messages)
+        if len(messages) == 0:
+            return [Path([internal_node.node_id])], [Path([-internal_node.node_id])]
+        result_true = []
+        result_false = []
+        for paths in messages:
+            for path in paths:
+                result_true.append(path.add(internal_node.node_id))
+                result_false.append(path.add(-internal_node.node_id))
+        return result_true, result_false
+
+    def visit_terminal(self, terminal_node, messages):
+        self.register_paths(terminal_node.node_id, messages)
+
+    def register_paths(self, node_id, messages):
+        self.paths[node_id] = [path for paths in messages for path in paths]
+
+
 class TestWalking(unittest.TestCase):
     def setUp(self):
         self.diagram = TestWalking.construct_diagram()
+        self.exporter = Exporter(os.path.join(os.path.dirname(os.path.realpath(__file__)), "visual"), "walking")
 
     @staticmethod
     def construct_diagram():
@@ -59,6 +103,24 @@ class TestWalking(unittest.TestCase):
         test3 = pool.internal(LinearTest("x + 2", "<="), x, test2)
         root = pool.internal(LinearTest("x", ">="), test1, test3)
         return Diagram(pool, root)
+
+    @staticmethod
+    def build_diagram2():
+        build = Builder()
+        build.vars("int", "x", "y")
+
+        test1 = build.test("x", "<=", "y")
+        test2 = build.test("y", "<=", 5)
+        test3 = build.test("x", ">=", 5)
+
+        exp1 = build.exp(5)
+        exp2 = build.exp("2 * x")
+
+        node3 = build.ite(test3, exp1, exp2)
+        node2 = build.ite(test2, node3, exp1)
+        node1 = build.ite(test1, node2, node3)
+
+        return node1
 
     def test_depth_first(self):
         dummy = DummyDepthFirstWalker(self.diagram)
@@ -100,6 +162,21 @@ class TestWalking(unittest.TestCase):
         profile = WalkingProfile(self.diagram)
         result = DummyBottomUpWalker(self.diagram, profile).walk()
         self.assertEqual(result, -5)
+
+    def test_top_down_walker(self):
+        diagram = self.build_diagram2()
+        self.exporter.export(diagram, "diagram")
+        walker = DummyTopDownWalker(diagram)
+        walker.walk()
+        control = {
+            25: [],
+            20: [Path([25])],
+            15: [Path([-25]), Path([25, 20])],
+            8: [Path([25, -20]), Path([25, 20, 15]), Path([-25, 15])],
+            9: [Path([25, 20, -15]), Path([-25, -15])]
+        }
+        for node_id, paths in control.items():
+            self.assertEquals(set(paths), set(walker.paths[node_id]))
 
 
 if __name__ == '__main__':
