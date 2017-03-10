@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import sympy
+from collections import defaultdict
 
 from pyxadd.diagram import Diagram, DefaultCache, Pool
 from pyxadd.operation import Summation, Multiplication
@@ -87,6 +88,8 @@ class SummationWalker(DownUpWalker):
         self.node_cache = dict()
         self.sum_cache = dict()
         SummationCache.initialize(diagram.pool)
+        self.conflicts = set()
+        self.revisit = defaultdict(lambda: 0)
 
     def visit_internal_down(self, internal_node, parent_message):
         operator = internal_node.test.operator.to_canonical()
@@ -187,6 +190,7 @@ class SummationWalker(DownUpWalker):
         return converted_terminal
 
     def _build_terminal(self, terminal_node, lb_i, lb_c, lower_bounds, ub_i, ub_c, upper_bounds):
+        self.revisit[terminal_node.node_id] += 1
         pool = self._diagram.pool
         assert isinstance(pool, Pool)
 
@@ -235,10 +239,31 @@ class SummationWalker(DownUpWalker):
 
 
 def matrix_multiply(pool, root1, root2, variables):
+    """
+    :type pool: Pool
+    :type root1: int
+    :type root2: int
+    :type variables: list
+    """
     return sum_out(pool, pool.apply(Multiplication, root1, root2), variables)
 
 
-def sum_out(pool, root, variables):
+def matrix_multiply_reduced(pool, root1, root2, variables, reducer=None, all_variables=None):
+    """
+    :type pool: Pool
+    :type root1: int
+    :type root2: int
+    :type variables: list
+    :type reducer: pyxadd.reduce.Reducer|None
+    :type all_variables: list|None
+    """
+    multiplied = pool.apply(Multiplication, root1, root2)
+    if reducer is not None:
+        multiplied = reducer.reduce(multiplied, all_variables)
+    return sum_out(pool, multiplied, variables, reducer, all_variables)
+
+
+def sum_out(pool, root, variables, reducer=None, all_variables=None):
     variables = list(str(v) for v in variables)
     diagram = pool.diagram(root)
     result = diagram
@@ -248,7 +273,15 @@ def sum_out(pool, root, variables):
     per_var = timer.sub_time()
     for var in variables:
         per_var.start("Summing out {}".format(var))
-        result = pool.diagram(SummationWalker(result, var).walk())
+        walker = SummationWalker(result, var)
+        result_id = walker.walk()
+        if reducer is not None:
+            result_id = reducer.reduce(result_id, all_variables)
+        result = pool.diagram(result_id)
+        total = sum(walker.revisit.values())
+        from numpy import average
+        avg = average(walker.revisit.values())
+        print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
     timer.start("Checking output")
     _check_output(diagram, result, variables)
     timer.stop()
