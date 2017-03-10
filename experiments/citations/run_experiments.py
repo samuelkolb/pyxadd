@@ -2,19 +2,30 @@ from __future__ import print_function
 
 import time
 
+import sys
+
 from experiments.citations.citations import ExperimentRunner, CitationExperiment
 from experiments.citations.print_experiments import print_experiments
 
 
-def main(output="."):
-    size = 500000
-    delta = 0
-    iterations = 60
-    damping_factor = 0.85
-    copy_rate = 0
-    discrete = True
-    tree_depth = 5
-    leaf_cutoff_rate = 0.01  # 0.001
+def main(output=".", size=None, delta=None, iterations=None, damping_factor=None, copy_rate=None, discrete=None,
+         tree_depth=None, leaf_cutoff_rate=None):
+    settings = dict()
+    settings["size"] = 500000 if size is None else size
+    settings["delta"] = 0 if delta is None else delta
+    settings["iterations"] = 60 if iterations is None else iterations
+    settings["damping_factor"] = 0.85 if damping_factor is None else damping_factor
+    settings["copy_rate"] = 0 if copy_rate is None else copy_rate
+    settings["discrete"] = True if discrete is None else discrete
+    settings["tree_depth"] = 5 if tree_depth is None else tree_depth
+    settings["leaf_cutoff_rate"] = 0.01 if leaf_cutoff_rate is None else leaf_cutoff_rate
+
+    variable = None
+    for name, value in settings.items():
+        if isinstance(value, list):
+            if variable is not None:
+                raise RuntimeError("Multiple range search currently not supported")
+            variable = name
 
     import uuid
     time_id = "{}_{}".format(time.strftime("%Y%m%d_%H%M%S"), str(uuid.uuid4()))
@@ -29,15 +40,31 @@ def main(output="."):
     # for size in range(100000, 1100000, 100000):
     # for leaf_cutoff_rate in numpy.linspace(0.001, 0.1001, 21):
     # for damping_factor in numpy.linspace(0, 1, 21):
-    for iterations in range(10, 70, 10):
-        runner.run(size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate)
+
+    def run(values):
+        runner.run(
+            values["size"],
+            values["delta"],
+            values["iterations"],
+            values["damping_factor"],
+            values["copy_rate"],
+            values["discrete"],
+            values["tree_depth"],
+            values["leaf_cutoff_rate"]
+        )
+
+    if variable is None:
+        run(settings)
+    else:
+        values = settings
+        for current_value in settings[variable]:
+            values[variable] = current_value
+            run(values)
 
     runner.export_experiments()
 
-    print()
+    print("\nExperiments for ID {}".format(time_id))
     print_experiments(runner.experiments)
-
 
 if __name__ == "__main__":
     main()
-
