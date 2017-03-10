@@ -101,10 +101,12 @@ class Matrix(object):
                 raise RuntimeError("Mismatch between column variables {} and row variables {}"
                                    .format(self._col_vars, other._row_vars))
 
-            from pyxadd.matrix_vector import matrix_multiply
+            from pyxadd.matrix_vector import matrix_multiply_reduced
             pool = self.diagram.pool
             variables = [t[0] for t in self._col_vars]
-            diagram = pool.diagram(matrix_multiply(pool, self.diagram.root_id, other.diagram.root_id, variables))
+            reducer = self.get_reducer() if self.is_simple() else None
+            diagram = pool.diagram(matrix_multiply_reduced(pool, self.diagram.root_id, other.diagram.root_id, variables,
+                                                           reducer))
             diagram = self._optional_reduce(diagram)
             return self._matrix(diagram, self._row_vars, other._col_vars, [self, other], self.height, other.width)
         else:
@@ -238,9 +240,12 @@ class Matrix(object):
         else:
             return diagram
 
+    def get_reducer(self):
+        return self._reducer if not self.is_simple() else self._simple_reducer
+
     def _reduce_diagram(self, diagram, reducer=None):
         if reducer is None:
-            reducer = self._reducer if not self.is_simple() else self._simple_reducer
+            reducer = self.get_reducer()
 
         variables = [t[0] for t in self._row_vars + self._col_vars]
         # print(variables)
