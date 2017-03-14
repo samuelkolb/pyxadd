@@ -4,6 +4,9 @@ import argparse
 import json
 
 from os.path import dirname, basename
+
+import numpy
+
 from experiments.citations.citations import CitationExperiment, ExperimentRunner
 
 attributes = [
@@ -24,6 +27,7 @@ attributes = [
     ("Kendall Tau (lifted-verification)", lambda experiment, i: experiment.kt_lifted_verification),
     ("Iterations", lambda experiment, i: experiment.iterations),
     ("Verification Iterations", lambda experiment, i: experiment.verification_iterations),
+    ("Folds", lambda experiment, i: experiment.folds),
     ("Lifted Speed Learning", lambda experiment, i: experiment.lifted_speed_learning),
     ("Lifted Speed PageRank", lambda experiment, i: experiment.lifted_speed_pagerank),
     ("Lifted Speed Grounding", lambda experiment, i: experiment.lifted_speed_grounding),
@@ -38,7 +42,7 @@ def print_experiments(experiments, print_attributes=None):
     print(*[t[0] for t in print_attributes], sep="\t")
     for i in range(len(experiments)):
         experiment = experiments[i]
-        values = [t[1](experiment, i) for t in print_attributes]
+        values = [numpy.average(list(t[1](e, i) for e in experiment)) for t in print_attributes]
         print(*values, sep="\t")
 
 if __name__ == "__main__":

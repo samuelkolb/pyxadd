@@ -9,7 +9,7 @@ from experiments.citations.print_experiments import print_experiments
 
 
 def main(output=".", size=None, delta=None, iterations=None, damping_factor=None, copy_rate=None, discrete=None,
-         tree_depth=None, leaf_cutoff_rate=None):
+         tree_depth=None, leaf_cutoff_rate=None, folds=None):
     settings = dict()
     settings["size"] = 500000 if size is None else size
     settings["delta"] = 0 if delta is None else delta
@@ -19,6 +19,7 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
     settings["discrete"] = True if discrete is None else discrete
     settings["tree_depth"] = 5 if tree_depth is None else tree_depth
     settings["leaf_cutoff_rate"] = 0.01 if leaf_cutoff_rate is None else leaf_cutoff_rate
+    settings["folds"] = 5 if folds is None else folds
 
     variable = None
     for name, value in settings.items():
@@ -50,7 +51,8 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
             values["copy_rate"],
             values["discrete"],
             values["tree_depth"],
-            values["leaf_cutoff_rate"]
+            values["leaf_cutoff_rate"],
+            values["folds"],
         )
 
     if variable is None:
@@ -67,4 +69,4 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
     print_experiments(runner.experiments)
 
 if __name__ == "__main__":
-    main()
+    main(size=300000)

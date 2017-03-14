@@ -61,15 +61,9 @@ def export_subset(size, complete_authors, complete_neighbors, complete_sum_paper
         indices = random.sample(range(len(complete_authors)), size)
     else:
         indices = list(i for i in range(len(complete_authors)))
-    index_set = set(indices)
-    subset_authors = [complete_authors[i] for i in indices]
-    subset_lookup = {subset_authors[i]: i for i in range(len(subset_authors))}
-    subset_sum_papers = [complete_sum_papers[i] for i in indices]
-    subset_median_years = [complete_median_years[i] for i in indices]
-    subset_neighbors = [
-        [subset_lookup[complete_authors[n]] for n in author_neighbors if n in index_set]
-        for author_neighbors in [complete_neighbors[i] for i in indices]
-        ]
+
+    subset = compute_subset(indices, complete_authors, complete_neighbors, complete_sum_papers, complete_median_years)
+    subset_authors, subset_neighbors, subset_sum_papers, subset_median_years = subset
 
     with open(authors_file, "w") as f:
         for i in range(len(subset_authors)):
@@ -87,6 +81,32 @@ def export_subset(size, complete_authors, complete_neighbors, complete_sum_paper
                 print("{}, {}".format(a1, a2), file=f)
 
 
+def compute_subset(indices, complete_authors, complete_neighbors, complete_sum_papers, complete_median_years):
+    index_set = set(indices)
+    subset_authors = [complete_authors[i] for i in indices]
+    subset_lookup = {subset_authors[i]: i for i in range(len(subset_authors))}
+    subset_sum_papers = [complete_sum_papers[i] for i in indices]
+    subset_median_years = [complete_median_years[i] for i in indices]
+    subset_neighbors = [
+        [subset_lookup[complete_authors[n]] for n in author_neighbors if n in index_set]
+        for author_neighbors in [complete_neighbors[i] for i in indices]
+        ]
+    return subset_authors, subset_neighbors, subset_sum_papers, subset_median_years
+
+
+def get_bucket_indices(folds, size):
+    import math
+    indices = list(range(size))
+    random.shuffle(indices)
+    buckets = []
+    step = int(math.ceil(size / float(folds)))
+    for i in range(folds):
+        start = i * step
+        stop = min(len(indices) - 1, (i + 1) * step - 1)
+        buckets.append(indices[start:stop])
+    return buckets
+
+
 def copy_neighbors(neighbors, copy_rate):
     new_list = []
     for a1 in range(len(neighbors)):
@@ -102,10 +122,18 @@ def copy_neighbors(neighbors, copy_rate):
 
 class AuthorPagerank(object):
     def __init__(self, authors, neighbors, sum_papers, median_years):
+        # self.folds = folds
+
         self.authors = authors
         self.neighbors = neighbors
         self.sum_papers = sum_papers
         self.median_years = median_years
+
+        self.authors = authors
+        self.neighbors = neighbors
+        self.sum_papers = sum_papers
+        self.median_years = median_years
+
         self.attributes = None
         self.converged = None
         self.values = None
@@ -123,25 +151,7 @@ class AuthorPagerank(object):
     def variable_names(self):
         return ["f{}".format(i) for i in range(self.attribute_count)]
 
-    def compute_pagerank(self, timer, damping_factor, delta, iterations, tree_file=None, diagram_file=None,
-                         diagram_export_file=None, discrete=True, options=None):
-        if self.converged is not None:
-            return
-
-        authors, neighbors, sum_papers, median_years = self.authors, self.neighbors, self.sum_papers, self.median_years
-
-        learning_time = 0
-
-        timer.start("Computing attributes")
-        sum_neighbors = []
-        for i in range(len(authors)):
-            sum_neighbors.append(len(neighbors[i]))
-
-        attributes = zip(sum_papers, sum_neighbors, self.median_years)
-        self.attributes = attributes
-        # print(attributes)
-        learning_time += timer.stop()
-
+    def compute_decision_tree(self, timer, authors, attributes, neighbors, options, tree_file):
         timer.start("Computing learning examples and labels")
         examples = []
         labels = []
@@ -173,27 +183,50 @@ class AuthorPagerank(object):
                 if a[i] < min_attributes[i]:
                     min_attributes[i] = a[i]
 
-        variables = [("f{}".format(i), min_attributes[i], int(1.2 * max_attributes[i])) for i in range(attribute_count)]
+        examples = [attributes[i] + attributes[j] for i, j in examples]
+        # print("\n".join(list(", ".join((str(e) for e in examples[i])) + ": " + str(labels[i]) for i in range(len(examples)))))
+
+        timer.start("Learning decision tree")
+        clf = learn_decision_tree(examples, labels, options)
+        self.clf = clf
+
+        if tree_file is not None:
+            timer.start("Exporting decision tree to {}".format(tree_file))
+            export_classifier(clf, tree_file)
+
+        return clf, min_attributes, max_attributes
+
+    def compute_pagerank(self, timer, damping_factor, delta, iterations, tree_file=None, diagram_file=None,
+                         diagram_export_file=None, discrete=True, options=None):
+        if self.converged is not None:
+            return
+
+        authors, neighbors, sum_papers, median_years = self.authors, self.neighbors, self.sum_papers, self.median_years
+
+        learning_time = 0
+
+        timer.start("Computing attributes")
+        sum_neighbors = []
+        for i in range(len(authors)):
+            sum_neighbors.append(len(neighbors[i]))
+
+        attributes = zip(sum_papers, sum_neighbors, self.median_years)
+        self.attributes = attributes
+        # print(attributes)
+        learning_time += timer.stop()
+
+        clf, min_attributes, max_attributes = self.compute_decision_tree(timer, authors, attributes,
+                                                                         neighbors, options, tree_file)
+
+        timer.start("Converting decision tree to XADD")
+        variables = [("f{}".format(i), int(0.8 * min_attributes[i]), int(1.2 * max_attributes[i]))
+                     for i in range(self.attribute_count)]
         self.variables = variables
         diagram_variables = []
         for prefix in ("r", "c"):
             diagram_variables.append([("{}_{}".format(prefix, name), lb, ub) for name, lb, ub in variables])
         row_variables, column_variables = diagram_variables
 
-        examples = [attributes[i] + attributes[j] for i, j in examples]
-        # print("\n".join(list(", ".join((str(e) for e in examples[i])) + ": " + str(labels[i]) for i in range(len(examples)))))
-        learning_time += timer.stop()
-
-        timer.start("Learning decision tree")
-        clf = learn_decision_tree(examples, labels, options)
-        self.clf = clf
-        learning_time += timer.stop()
-
-        if tree_file is not None:
-            timer.start("Exporting decision tree to {}".format(tree_file))
-            export_classifier(clf, tree_file)
-
-        timer.start("Converting decision tree to XADD")
         xadd = decision_tree_to_xadd(clf, row_variables + column_variables, discrete=discrete)
         for var in variables:
             xadd.pool.add_var(var[0], "int")
@@ -361,8 +394,10 @@ def calculate_ground_pagerank(timer, authors, neighbors, damping_factor, delta, 
     # values_ground, _ = sparse_pagerank.pageRank(adjacency_matrix, s=0.85, maxerr=10 ** -3)
     # values_test, _ = test_pagerank.pagerank_ground(numpy.matrix(adjacency_matrix), 0.85, 100, 10 ** -3)
     # for i in range(len(authors)):
-    #     if not abs(values_test[i] - values_ground1[i]) < 10 ** -3 or not abs(values_ground[i] - values_test[i]) < 10 ** -3:
-    #         raise RuntimeError("Index {}: not equal: {} (csc) {} (networkx) {} (test)".format(i, values_ground[i], values_ground1[i], values_test[i]))
+    #     if not abs(values_test[i] - values_ground1[i]) < 10 ** -3 or not abs(values_ground[i] - values_test[i])
+    # < 10 ** -3:
+    #         raise RuntimeError("Index {}: not equal: {} (csc) {} (networkx) {} (test)".format(i, values_ground[i],
+    # values_ground1[i], values_test[i]))
     #     else:
     #         print("check")
     # exit()
@@ -399,6 +434,31 @@ def make_histogram(values):
     return histogram
 
 
+class CitationExperimentSetting(object):
+    def __init__(self, size, copy_rate, damping_factor, tree_depth, iterations, leaf_cutoff_rate,
+                 verification_iterations, folds):
+        self.size = size
+        self.copy_rate = copy_rate
+        self.damping_factor = damping_factor
+        self.tree_depth = tree_depth
+        self.iterations = iterations
+        self.leaf_cutoff_rate = leaf_cutoff_rate
+        self.verification_iterations = verification_iterations
+        self.folds = folds
+
+    def get_experiment(self):
+        experiment = CitationExperiment()
+        experiment.size = self.size
+        experiment.copy_rate = self.copy_rate
+        experiment.damping_factor = self.damping_factor
+        experiment.tree_depth = self.tree_depth
+        experiment.iterations = self.iterations
+        experiment.leaf_cutoff_rate = self.leaf_cutoff_rate
+        experiment.verification_iterations = self.verification_iterations
+        experiment.folds = self.folds
+        return experiment
+
+
 class CitationExperiment(object):
     def __init__(self):
         self.size = None
@@ -421,6 +481,7 @@ class CitationExperiment(object):
         self.ground_speed = None
         self.leaf_cutoff_rate = None
         self.verification_iterations = None
+        self.folds = None
 
     @property
     def density(self):
@@ -459,6 +520,7 @@ class CitationExperiment(object):
             "ground_speed": self.ground_speed,
             "leaf_cutoff_rate": self.leaf_cutoff_rate,
             "verification_iterations": self.verification_iterations,
+            "folds": self.folds,
         }
 
     @staticmethod
@@ -477,6 +539,7 @@ class CitationExperiment(object):
         experiment.kt_ground_verification = float(dictionary["kt_ground_verification"])
         experiment.kt_lifted_verification = float(dictionary["kt_lifted_verification"])
         experiment.iterations = int(dictionary["iterations"])
+        experiment.iterations = int(dictionary["iterations"])
         experiment.lifted_speed_learning = float(dictionary["lifted_speed_learning"])
         experiment.lifted_speed_pagerank = float(dictionary["lifted_speed_pagerank"])
         experiment.lifted_speed_grounding = float(dictionary["lifted_speed_grounding"])
@@ -484,7 +547,105 @@ class CitationExperiment(object):
         experiment.ground_speed = float(dictionary["ground_speed"])
         experiment.leaf_cutoff_rate = float(dictionary["leaf_cutoff_rate"])
         experiment.verification_iterations = int(dictionary["verification_iterations"])
+        experiment.folds = int(dictionary["folds"])
         return experiment
+
+
+class DataSet(object):
+    def __init__(self, authors, neighbors, sum_papers, median_years):
+        self.authors, self.neighbors, self.sum_papers, self.median_years = authors, neighbors, sum_papers, median_years
+
+    @property
+    def author_count(self):
+        return len(self.authors)
+
+    @property
+    def link_count(self):
+        return count_links(self.neighbors)
+
+    def get_random_subset(self, size):
+        if size < self.author_count:
+            indices = random.sample(range(self.author_count), size)
+        else:
+            indices = list(range(self.author_count))
+        return self.get_subset(indices)
+
+    def get_subset(self, indices):
+        subset = compute_subset(indices, self.authors, self.neighbors, self.sum_papers, self.median_years)
+        authors, neighbors, sum_papers, median_years = subset
+        data_set = DataSet(authors, neighbors, sum_papers, median_years)
+        return data_set
+
+    def copy_neighbors(self, copy_rate):
+        neighbors = copy_neighbors(self.neighbors, copy_rate)
+        return DataSet(self.authors, neighbors, self.sum_papers, self.median_years)
+
+    def reload(self, timer, location, identifier):
+        self.export_to_file(timer, location, identifier)
+        return DataSet.import_from_disk(timer, location, identifier)
+
+    def as_list(self):
+        return [self.authors, self.neighbors, self.sum_papers, self.median_years]
+
+    def get_buckets(self, folds):
+        bucket_indices = get_bucket_indices(folds, self.author_count)
+        buckets = []
+        for i in range(folds):
+            training_indices = []
+            testing_indices = None
+            for j in range(folds):
+                if i != j:
+                    training_indices += bucket_indices[j]
+                else:
+                    testing_indices = bucket_indices[j]
+            buckets.append((sorted(training_indices), sorted(testing_indices)))
+        return buckets
+
+    @staticmethod
+    def get_file_name(location, name, identifier=None):
+        suffix = "" if identifier is None else "_{}".format(identifier)
+        return "{}/{}{}.txt".format(location, name, suffix)
+
+    def export_to_file(self, timer, location, identifier):
+        names = ["authors", "coauthors", "median_years"]
+        f = lambda t: self.get_file_name(location, t, identifier)
+        authors_file, coauthors_file, median_years_file = map(f, names)
+
+        timer.start("Exporting authors to {}".format(authors_file))
+        with open(authors_file, "w") as f:
+            for i in range(self.author_count):
+                print("{}, {}".format(self.authors[i], self.sum_papers[i]), file=f)
+
+        timer.start("Exporting median years to {}".format(median_years_file))
+        with open(median_years_file, "w") as f:
+            for i in range(self.author_count):
+                print("{}, {}".format(self.authors[i], self.median_years[i]), file=f)
+
+        timer.start("Exporting coauthors to {}".format(coauthors_file))
+        with open(coauthors_file, "w") as f:
+            # TODO Consider changing the format to [node: neighbor1, ..., neighborN]
+            for i in range(self.author_count):
+                author_neighbors = self.neighbors[i]
+                for neighbor in author_neighbors:
+                    a1, a2 = sorted((self.authors[i], self.authors[neighbor]))
+                    print("{}, {}".format(a1, a2), file=f)
+
+        timer.stop()
+
+    @staticmethod
+    def import_from_disk(timer, location, identifier=None):
+        names = ["authors", "coauthors", "median_years"]
+        f = lambda t: DataSet.get_file_name(location, t, identifier)
+        authors_file, coauthors_file, median_years_file = map(f, names)
+
+        timer.start("Importing authors from {}".format(authors_file))
+        authors, lookup, sum_papers = import_authors(authors_file)  # TODO sum paper is over all
+        timer.start("Importing median years from {}".format(median_years_file))
+        median_years = import_median_years(authors, median_years_file)  # TODO median years is over all
+        timer.start("Importing coauthors from {}".format(coauthors_file))
+        neighbors = import_neighbors(authors, lookup, coauthors_file)
+        timer.stop()
+        return DataSet(authors, neighbors, sum_papers, median_years)
 
 
 class ExperimentRunner(object):
@@ -498,8 +659,10 @@ class ExperimentRunner(object):
             os.makedirs(directory)
 
         self.experiments = []
+        self.timer = Timer()
+        self.full_data_set = DataSet.import_from_disk(self.timer, ".")
 
-    def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate):
+    def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate, folds):
         authors_file = "{}/authors_{}.txt".format(self.directory, size)
         coauthors_file = "{}/coauthors_{}.txt".format(self.directory, size)
         median_years_file = "{}/median_years_{}.txt".format(self.directory, size)
@@ -516,109 +679,102 @@ class ExperimentRunner(object):
 
         timer = Timer()
 
-        experiment = CitationExperiment()
-        experiment.size = size
-        experiment.iterations = iterations
-        experiment.damping_factor = damping_factor
-        experiment.copy_rate = copy_rate
-        experiment.tree_depth = tree_depth
-        experiment.leaf_cutoff_rate = leaf_cutoff_rate
-        experiment.verification_iterations = 100
+        setting = CitationExperimentSetting(size, copy_rate, damping_factor, tree_depth, iterations, leaf_cutoff_rate,
+                                            100, folds)
 
-        if not cache_authors or not os.path.isfile(authors_file) or not os.path.isfile(coauthors_file) \
-                or not os.path.isfile(median_years_file):
-            timer.start("Importing authors from {} to compute subset".format(self.authors_root_file))
-            authors, lookup, sum_papers = import_authors(self.authors_root_file)
-            timer.start("Importing median years from {} to compute subset".format(self.median_years_root_file))
-            median_years = import_median_years(authors, self.median_years_root_file)
-            timer.start("Importing coauthors from {} to compute subset".format(self.coauthors_root_file))
-            neighbors = import_neighbors(authors, lookup, self.coauthors_root_file)
-            timer.start("Exporting author and coauthor files to {} and {}".format(authors_file, coauthors_file))
-            export_subset(size, authors, neighbors, sum_papers, median_years, authors_file, coauthors_file,
-                          median_years_file)
-
-        timer.start("Importing authors from {}".format(authors_file))
-        authors, lookup, sum_papers = import_authors(authors_file)
-
-        timer.start("Importing median years from {}".format(median_years_file))
-        median_years = import_median_years(authors, median_years_file)
-
-        timer.start("Importing coauthors from {}".format(coauthors_file))
-        neighbors = import_neighbors(authors, lookup, coauthors_file)
+        options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
+        subset = self.full_data_set.get_random_subset(size).reload(timer, self.directory, size)
 
         timer.start("Copy co-authors (copy rate={})".format(copy_rate))
-        neighbors = copy_neighbors(neighbors, copy_rate)
+        subset = subset.copy_neighbors(copy_rate)
 
-        timer.start("Counting links")
-        experiment.links = count_links(neighbors)
+        timer.start("Computing buckets ({} folds)".format(setting.folds))
+        buckets = subset.get_buckets(setting.folds)
 
-        timer.start("Computing lifted values")
-        task = AuthorPagerank(authors, neighbors, sum_papers, median_years)
-        options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
-        task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
-                              tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
-                              discrete=discrete, options=options)
-        values_lifted = task.values
-        experiment.lifted_speed = timer.stop()
-        experiment.lifted_speed_learning = task.learning_time
-        experiment.lifted_speed_pagerank = task.pagerank_time
-        experiment.lifted_speed_grounding = task.grounding_time
+        # Below is the iterative part (per bucket)
 
-        timer.start("Computing decision tree accuracy")
-        true_positive, true_negative, positive, negative = task.get_balanced_tree_accuracy(100000)
-        timer.log("TP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
-        experiment.true_positive = true_positive
-        experiment.positive = positive
-        experiment.true_negative = true_negative
-        experiment.negative = negative
+        experiments = []
 
-        timer.start("Exporting converged diagram to {}".format(converged_file))
-        task.converged.export(converged_file)
+        for i in range(len(buckets)):
+            training_indices, testing_indices = buckets[i]
+            training_set = subset.get_subset(training_indices)
 
-        if not cache_ground_values or not os.path.isfile(values_ground_same_file)\
-                or not os.path.isfile(values_ground_file):
-            timer.start("Calculating ground pagerank (same number of iterations {})".format(iterations))
-            ground_pagerank_same = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
-                                                        damping_factor=damping_factor,
-                                                        delta=delta, iterations=iterations)
-            experiment.ground_speed = timer.stop()
+            experiment = setting.get_experiment()
 
-            timer.start("Exporting ground pagerank to {}".format(values_ground_same_file))
-            export_ground_pagerank(ground_pagerank_same, values_ground_same_file)
+            timer.start("Counting links")
+            experiment.links = subset.link_count
+            timer.stop()
 
-            verification = experiment.verification_iterations
-            timer.start("Calculating ground pagerank (verification with {} iterations)".format(verification))
-            ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
-                                                        damping_factor=damping_factor,
-                                                        delta=delta, iterations=verification)
+            authors, neighbors, sum_papers, median_years = training_set.as_list()
 
-            timer.start("Exporting verification ground pagerank to {}".format(values_ground_file))
-            export_ground_pagerank(ground_pagerank, values_ground_file)
+            timer.start("Computing lifted values")
+            task = AuthorPagerank(authors, neighbors, sum_papers, median_years)
+            task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
+                                  tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
+                                  discrete=discrete, options=options)
+            values_lifted = task.values
+            experiment.lifted_speed = timer.stop()
+            experiment.lifted_speed_learning = task.learning_time
+            experiment.lifted_speed_pagerank = task.pagerank_time
+            experiment.lifted_speed_grounding = task.grounding_time
 
-        timer.start("Importing ground pagerank from {}".format(values_ground_same_file))
-        values_ground = import_ground_value(values_ground_same_file)
+            timer.start("Computing decision tree accuracy")
+            true_positive, true_negative, positive, negative = task.get_balanced_tree_accuracy(100000)
+            timer.log("TP = {}, TN = {}, P = {}, N = {}".format(true_positive, true_negative, positive, negative))
+            experiment.true_positive = true_positive
+            experiment.positive = positive
+            experiment.true_negative = true_negative
+            experiment.negative = negative
 
-        timer.start("Importing ground verification pagerank from {}".format(values_ground_file))
-        values_verification = import_ground_value(values_ground_file)
+            timer.start("Exporting converged diagram to {}".format(converged_file))
+            task.converged.export(converged_file)
 
-        timer.start("Calculating kendall tau correlation coefficient (ground-lifted)")
-        tau, _ = stats.kendalltau(values_lifted, values_ground)
-        timer.log("KT = {} ((ground-lifted))".format(tau))
-        experiment.kendall_tau = tau
+            if not cache_ground_values or not os.path.isfile(values_ground_same_file)\
+                    or not os.path.isfile(values_ground_file):
+                timer.start("Calculating ground pagerank (same number of iterations {})".format(iterations))
+                ground_pagerank_same = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
+                                                            damping_factor=damping_factor,
+                                                            delta=delta, iterations=iterations)
+                experiment.ground_speed = timer.stop()
 
-        timer.start("Calculating kendall tau correlation coefficient (ground-verification)")
-        tau, _ = stats.kendalltau(values_ground, values_verification)
-        timer.log("KT = {} (ground-verification)".format(tau))
-        experiment.kt_ground_verification = tau
+                timer.start("Exporting ground pagerank to {}".format(values_ground_same_file))
+                export_ground_pagerank(ground_pagerank_same, values_ground_same_file)
 
-        timer.start("Calculating kendall tau correlation coefficient (lifted-verification)")
-        tau, _ = stats.kendalltau(values_lifted, values_verification)
-        timer.log("KT = {} (lifted-verification)".format(tau))
-        experiment.kt_lifted_verification = tau
+                verification = experiment.verification_iterations
+                timer.start("Calculating ground pagerank (verification with {} iterations)".format(verification))
+                ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
+                                                            damping_factor=damping_factor,
+                                                            delta=delta, iterations=verification)
 
-        timer.start("Calculating maximum")
-        timer.log(find_optimal_conditions(task.converged.diagram, task.variables))
-        timer.stop()
+                timer.start("Exporting verification ground pagerank to {}".format(values_ground_file))
+                export_ground_pagerank(ground_pagerank, values_ground_file)
+
+            timer.start("Importing ground pagerank from {}".format(values_ground_same_file))
+            values_ground = import_ground_value(values_ground_same_file)
+
+            timer.start("Importing ground verification pagerank from {}".format(values_ground_file))
+            values_verification = import_ground_value(values_ground_file)
+
+            timer.start("Calculating kendall tau correlation coefficient (ground-lifted)")
+            tau, _ = stats.kendalltau(values_lifted, values_ground)
+            timer.log("KT = {} ((ground-lifted))".format(tau))
+            experiment.kendall_tau = tau
+
+            timer.start("Calculating kendall tau correlation coefficient (ground-verification)")
+            tau, _ = stats.kendalltau(values_ground, values_verification)
+            timer.log("KT = {} (ground-verification)".format(tau))
+            experiment.kt_ground_verification = tau
+
+            timer.start("Calculating kendall tau correlation coefficient (lifted-verification)")
+            tau, _ = stats.kendalltau(values_lifted, values_verification)
+            timer.log("KT = {} (lifted-verification)".format(tau))
+            experiment.kt_lifted_verification = tau
+
+            timer.start("Calculating maximum")
+            timer.log(find_optimal_conditions(task.converged.diagram, task.variables))
+            timer.stop()
+
+            experiments.append(experiment)
 
         # histogram_lifted = make_histogram(values_lifted)
         # histogram_ground = make_histogram(values_ground)
@@ -626,8 +782,8 @@ class ExperimentRunner(object):
         # print(histogram_lifted)
         # print(histogram_ground)
 
-        self.experiments.append(experiment)
-        return experiment
+        self.experiments.append(experiments)
+        return experiments
 
     def reset(self):
         self.experiments = []
@@ -635,14 +791,18 @@ class ExperimentRunner(object):
     def export_experiments(self):
         output_file = "{}/output_{}.txt".format(self.directory, time.strftime("%Y%m%d_%H%M%S"))
         with open(output_file, "w") as stream:
-            stream.write(json.dumps([experiment.export_to_dict() for experiment in self.experiments]))
+            stream.write(json.dumps([map(lambda e: e.export_to_dict(), experiment) for experiment in self.experiments]))
 
     def import_experiments(self, output_file):
         path = "{}/{}".format(self.directory, output_file)
         with open(path) as stream:
             experiment_list = json.load(stream)
-            self.experiments = list(CitationExperiment.import_from_dict(experiment_dict)
-                                    for experiment_dict in experiment_list)
+            self.experiments = list()
+            for experiment in experiment_list:
+                if isinstance(experiment, list):
+                    self.experiments.append(map(CitationExperiment.import_from_dict, experiment))
+                else:
+                    self.experiments.append([CitationExperiment.import_from_dict(experiment)])
 
     @staticmethod
     def load_experiments(directory, output_file):
