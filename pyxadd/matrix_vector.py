@@ -267,12 +267,12 @@ def sum_out(pool, root, variables, reducer=None, all_variables=None):
     variables = list(str(v) for v in variables)
     diagram = pool.diagram(root)
     result = diagram
-    from pyxadd.timer import Timer
-    timer = Timer()
-    timer.start("Summing out")
-    per_var = timer.sub_time()
+    # from pyxadd.timer import Timer
+    # timer = Timer()
+    # timer.start("Summing out")
+    # per_var = timer.sub_time()
     for var in variables:
-        per_var.start("Summing out {}".format(var))
+        # per_var.start("Summing out {}".format(var))
         walker = SummationWalker(result, var)
         result_id = walker.walk()
         if reducer is not None:
@@ -282,9 +282,9 @@ def sum_out(pool, root, variables, reducer=None, all_variables=None):
         from numpy import average
         avg = average(walker.revisit.values())
         print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
-    timer.start("Checking output")
+    # timer.start("Checking output")
     _check_output(diagram, result, variables)
-    timer.stop()
+    # timer.stop()
     return result.root_node.node_id
 
 
