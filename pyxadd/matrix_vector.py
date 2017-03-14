@@ -281,7 +281,7 @@ def sum_out(pool, root, variables, reducer=None, all_variables=None):
         total = sum(walker.revisit.values())
         from numpy import average
         avg = average(walker.revisit.values())
-        print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
+        # print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
     # timer.start("Checking output")
     _check_output(diagram, result, variables)
     # timer.stop()
