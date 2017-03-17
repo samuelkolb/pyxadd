@@ -69,4 +69,4 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
     print_experiments(runner.experiments)
 
 if __name__ == "__main__":
-    main(size=300000)
+    main(size=1000000, tree_depth=list(range(1, 11)))
