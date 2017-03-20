@@ -715,7 +715,13 @@ class ExperimentRunner(object):
 
         self.experiments = []
         self.timer = Timer()
-        self.full_data_set = DataSet.import_from_disk(self.timer, ".")
+        self._full_data_set = None
+
+    @property
+    def full_data_set(self):
+        if self._full_data_set is None:
+            self._full_data_set = DataSet.import_from_disk(self.timer, ".")
+        return self._full_data_set
 
     def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate, folds):
         authors_file = "{}/authors_{}.txt".format(self.directory, size)
