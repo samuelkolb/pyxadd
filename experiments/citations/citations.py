@@ -562,7 +562,7 @@ class CitationExperiment(object):
     @staticmethod
     def import_from_dict(dictionary):
         experiment = CitationExperiment()
-        for key, value in dictionary:
+        for key, value in dictionary.items():
             if hasattr(experiment, key):
                 setattr(experiment, key, float(value))
         return experiment
