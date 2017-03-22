@@ -508,6 +508,8 @@ class CitationExperiment(object):
         self.unseen_kendall_tau_lifted_ground = None
         self.unseen_kt_ground_verification = None
         self.unseen_kt_lifted_verification = None
+        self.constant_verification = None
+        self.random_verification = None
         self.iterations = None
         self.lifted_speed_learning = None
         self.lifted_speed_pagerank = None
@@ -881,6 +883,19 @@ class ExperimentRunner(object):
             tau, _ = stats.kendalltau(values_full_lifted, values_full_verification)
             timer.log("KT = {} (lifted-verification)".format(tau))
             experiment.unseen_kt_lifted_verification = tau
+
+            # Compare baseline pagerank
+            timer.start("Calculating kendall tau correlation coefficient (constant-verification)")
+            values_constant = numpy.zeros(len(values_full_verification))
+            tau, _ = stats.kendalltau(values_constant, values_full_verification)
+            timer.log("KT = {} (constant-verification)".format(tau))
+            experiment.constant_verification = tau
+
+            timer.start("Calculating kendall tau correlation coefficient (random-verification)")
+            values_random = list(random.random() for _ in range(len(values_full_verification)))
+            tau, _ = stats.kendalltau(values_random, values_full_verification)
+            timer.log("KT = {} (random-verification)".format(tau))
+            experiment.random_verification = tau
 
             timer.start("Calculating maximum")
             timer.log(find_optimal_conditions(task.converged.diagram, task.variables))

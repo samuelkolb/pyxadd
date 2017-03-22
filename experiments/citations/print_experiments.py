@@ -28,6 +28,8 @@ attributes = [
     ("Kendall Tau (unseen, lifted-ground)", lambda experiment, i: experiment.unseen_kendall_tau_lifted_ground),
     ("Kendall Tau (unseen, ground-verification)", lambda experiment, i: experiment.unseen_kt_ground_verification),
     ("Kendall Tau (unseen, lifted-verification)", lambda experiment, i: experiment.unseen_kt_lifted_verification),
+    ("Kendall Tau (constant-verification)", lambda experiment, i: experiment.constant_verification),
+    ("Kendall Tau (random-verification)", lambda experiment, i: experiment.random_verification),
     ("Iterations", lambda experiment, i: experiment.iterations),
     ("Verification Iterations", lambda experiment, i: experiment.verification_iterations),
     ("Folds", lambda experiment, i: experiment.folds),
