@@ -493,32 +493,32 @@ class CitationExperimentSetting(object):
 
 class CitationExperiment(object):
     def __init__(self):
-        self.size = None
-        self.copy_rate = None
-        self.links = None
-        self.damping_factor = None
-        self.tree_depth = None
-        self.true_positive = None
-        self.positive = None
-        self.true_negative = None
-        self.negative = None
-        self.kendall_tau = None
-        self.kt_ground_verification = None
-        self.kt_lifted_verification = None
-        self.unseen_kendall_tau_lifted_ground = None
-        self.unseen_kt_ground_verification = None
-        self.unseen_kt_lifted_verification = None
-        self.constant_verification = None
-        self.random_verification = None
-        self.iterations = None
-        self.lifted_speed_learning = None
-        self.lifted_speed_pagerank = None
-        self.lifted_speed_grounding = None
-        self.lifted_speed = None
-        self.ground_speed = None
-        self.leaf_cutoff_rate = None
-        self.verification_iterations = None
-        self.folds = None
+        self.size = numpy.nan
+        self.copy_rate = numpy.nan
+        self.links = numpy.nan
+        self.damping_factor = numpy.nan
+        self.tree_depth = numpy.nan
+        self.true_positive = numpy.nan
+        self.positive = numpy.nan
+        self.true_negative = numpy.nan
+        self.negative = numpy.nan
+        self.kendall_tau = numpy.nan
+        self.kt_ground_verification = numpy.nan
+        self.kt_lifted_verification = numpy.nan
+        self.unseen_kendall_tau_lifted_ground = numpy.nan
+        self.unseen_kt_ground_verification = numpy.nan
+        self.unseen_kt_lifted_verification = numpy.nan
+        self.constant_verification = numpy.nan
+        self.random_verification = numpy.nan
+        self.iterations = numpy.nan
+        self.lifted_speed_learning = numpy.nan
+        self.lifted_speed_pagerank = numpy.nan
+        self.lifted_speed_grounding = numpy.nan
+        self.lifted_speed = numpy.nan
+        self.ground_speed = numpy.nan
+        self.leaf_cutoff_rate = numpy.nan
+        self.verification_iterations = numpy.nan
+        self.folds = numpy.nan
 
     @property
     def density(self):
@@ -631,7 +631,6 @@ class DataSet(object):
         if indices is not None:
             attributes = dict(zip(indices, attributes))
         return attributes
-
 
     def copy_neighbors(self, copy_rate):
         neighbors = copy_neighbors(self.neighbors, copy_rate)

@@ -41,14 +41,24 @@ attributes = [
 ]
 
 
-def print_experiments(experiments, print_attributes=None):
+def get_experiments_table(experiments, print_attributes=None):
     if print_attributes is None:
         print_attributes = attributes
-    print(*[t[0] for t in print_attributes], sep="\t")
+    header = "\t".join(t[0] for t in print_attributes)
+    rows = [header]
     for i in range(len(experiments)):
         experiment = experiments[i]
         values = [numpy.average(list(t[1](e, i) for e in experiment)) for t in print_attributes]
-        print(*values, sep="\t")
+        rows.append("\t".join(str(value) for value in values))
+    return "\n".join(rows) + "\n"
+
+
+def print_experiments(experiments, print_attributes=None, filename=None):
+    if filename is None:
+        print(get_experiments_table(experiments, print_attributes))
+    else:
+        with open(filename, "w") as stream:
+            print(get_experiments_table(experiments, print_attributes), file=stream)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
@@ -57,4 +67,4 @@ if __name__ == "__main__":
     full_path = arguments["file"]
     directory = dirname(full_path)
     output_file = basename(full_path)
-    print_experiments(ExperimentRunner.load_experiments(directory, output_file).experiments)
+    print(get_experiments_table(ExperimentRunner.load_experiments(directory, output_file).experiments))

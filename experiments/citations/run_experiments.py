@@ -67,6 +67,8 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
 
     print("\nExperiments for ID {}".format(time_id))
     print_experiments(runner.experiments)
+    table_file = "{}/table.txt".format(directory)
+    print_experiments(runner.experiments, filename=table_file)
 
 if __name__ == "__main__":
-    main(size=1000000, tree_depth=list(range(1, 11)))
+    main(size=100000)
