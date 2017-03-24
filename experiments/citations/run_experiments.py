@@ -9,7 +9,7 @@ from experiments.citations.print_experiments import print_experiments
 
 
 def main(output=".", size=None, delta=None, iterations=None, damping_factor=None, copy_rate=None, discrete=None,
-         tree_depth=None, leaf_cutoff_rate=None, folds=None):
+         tree_depth=None, leaf_cutoff_rate=None, folds=None, root_files_directory=None):
     settings = dict()
     settings["size"] = 500000 if size is None else size
     settings["delta"] = 0 if delta is None else delta
@@ -32,7 +32,7 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
     time_id = "{}_{}".format(time.strftime("%Y%m%d_%H%M%S"), str(uuid.uuid4()))
     print("Running experiments with ID {}".format(time_id))
     directory = "{}/temp_{}".format(output, time_id)
-    runner = ExperimentRunner(directory)
+    runner = ExperimentRunner(directory, root_files_directory)
 
     # for damping_factor in [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]:
     # for damping_factor in [0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0]:
@@ -71,4 +71,4 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
     print_experiments(runner.experiments, filename=table_file)
 
 if __name__ == "__main__":
-    main(size=100000)
+    main(size=1000, tree_depth=list(range(1, 11, 1)))

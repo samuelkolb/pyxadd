@@ -709,7 +709,7 @@ class ExperimentRunner(object):
     coauthors_root_file = "coauthors.txt"
     median_years_root_file = "median_years.txt"
 
-    def __init__(self, directory="temp"):
+    def __init__(self, directory="temp", root_files_directory=None):
         self.directory = directory
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -717,11 +717,13 @@ class ExperimentRunner(object):
         self.experiments = []
         self.timer = Timer()
         self._full_data_set = None
+        self.root_files_directory = root_files_directory
 
     @property
     def full_data_set(self):
         if self._full_data_set is None:
-            self._full_data_set = DataSet.import_from_disk(self.timer, ".")
+            root_files_directory = self.root_files_directory if self.root_files_directory is not None else "."
+            self._full_data_set = DataSet.import_from_disk(self.timer, root_files_directory)
         return self._full_data_set
 
     def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate, folds):

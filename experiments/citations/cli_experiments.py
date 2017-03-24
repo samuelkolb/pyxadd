@@ -27,6 +27,9 @@ def parse_args(arguments):
         key, value = argument.split("=")
         if key == "output":
             value = str(value)
+        elif key == "input":
+            key = "root_files_directory"
+            value = str(value)
         elif ":" in value:
             start, step, end = value.split(":")
             value = list(step_range(to_number(start), to_number(end), to_number(step)))
