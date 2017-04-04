@@ -1,0 +1,1 @@
+tree((f, 5), tree((f, 2), class(1), tree((f, 3), class(2), class(3))), class(4)
