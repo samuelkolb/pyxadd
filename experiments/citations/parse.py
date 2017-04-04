@@ -82,7 +82,7 @@ def ast_to_xadd(pool, root_node):
     assert isinstance(root_node, Node)
     if root_node.name == "tree":
         # Recur
-        test, child_true, child_false = map(lambda root_node: ast_to_xadd(pool, root_node), root_node.children)
+        test, child_true, child_false = [ast_to_xadd(pool, node) for node in root_node.children]
         return pool.internal(test, child_true, child_false)
     elif root_node.name == "feature":
         # Construct test
