@@ -9,9 +9,12 @@ import scipy.sparse as sparse
 import scipy.stats as stats
 import time
 
+from experiments.citations.evaluation import KendallTau, TopInclusion, EvaluationMeasure, TopKT
+from experiments.citations.parse import read_xadds
 from experiments.link_prediction import learn_decision_tree, decision_tree_to_xadd, export_classifier
 from experiments.pagerank import pagerank
 from experiments.test import test_pagerank
+from pyxadd.diagram import Pool
 from pyxadd.evaluate import mass_evaluate
 from pyxadd.matrix.matrix import Matrix
 
@@ -191,6 +194,12 @@ class AuthorPagerank(object):
 
         return clf, min_attributes, max_attributes
 
+    def get_row_column_variables(self):
+        diagram_variables = []
+        for prefix in ("r", "c"):
+            diagram_variables.append([("{}_{}".format(prefix, name), lb, ub) for name, lb, ub in self.variables])
+        return tuple(diagram_variables)
+
     def compute_pagerank(self, timer, damping_factor, delta, iterations, tree_file=None, diagram_file=None,
                          diagram_export_file=None, discrete=True, options=None):
         if self.converged is not None:
@@ -219,10 +228,7 @@ class AuthorPagerank(object):
         variables = [("f{}".format(i), int(0.8 * min_attributes[i]), int(1.2 * max_attributes[i]))
                      for i in range(self.attribute_count)]
         self.variables = variables
-        diagram_variables = []
-        for prefix in ("r", "c"):
-            diagram_variables.append([("{}_{}".format(prefix, name), lb, ub) for name, lb, ub in variables])
-        row_variables, column_variables = diagram_variables
+        row_variables, column_variables = self.get_row_column_variables()
 
         xadd = decision_tree_to_xadd(clf, row_variables + column_variables, discrete=discrete)
         for var in variables:
@@ -231,6 +237,15 @@ class AuthorPagerank(object):
         learning_time += timer.stop()
         self.learning_time = learning_time
 
+        self._compute_pagerank(timer, matrix, variables, damping_factor, delta, iterations, diagram_file,
+                               diagram_export_file)
+
+        timer.start("Computing values for given authors")
+        self.values = self.compute_values(attributes)
+        self.grounding_time = timer.stop()
+
+    def _compute_pagerank(self, timer, matrix, variables, damping_factor, delta, iterations, diagram_file=None,
+                          diagram_export_file=None):
         if diagram_file is not None:
             timer.start("Exporting diagram to {}".format(diagram_file))
             matrix.export(diagram_file)
@@ -248,10 +263,6 @@ class AuthorPagerank(object):
         self.converged = converged
         timer.log("Converged after {} iterations".format(iterations))
         self.pagerank_time = timer.stop()
-
-        timer.start("Computing values for given authors")
-        self.values = self.compute_values(attributes)
-        self.grounding_time = timer.stop()
 
     def compute_values(self, attributes):
         converged, attribute_count, variables = self.converged, self.attribute_count, self.variable_names
@@ -372,7 +383,7 @@ class AuthorPagerank(object):
         examples = positive_examples + list(negative_candidates)
         examples = [attributes[a1] + attributes[a2] for a1, a2 in examples]
         control = numpy.zeros(2 * sample_count)
-        control[0:sample_count-1] = 1
+        control[0:sample_count - 1] = 1
         return self._compute_accuracy(examples, control)
 
 
@@ -468,7 +479,7 @@ def make_histogram(values):
 
 class CitationExperimentSetting(object):
     def __init__(self, size, copy_rate, damping_factor, tree_depth, iterations, leaf_cutoff_rate,
-                 verification_iterations, folds):
+                 verification_iterations, folds, top_count):
         self.size = size
         self.copy_rate = copy_rate
         self.damping_factor = damping_factor
@@ -477,6 +488,7 @@ class CitationExperimentSetting(object):
         self.leaf_cutoff_rate = leaf_cutoff_rate
         self.verification_iterations = verification_iterations
         self.folds = folds
+        self.top_count = top_count
 
     def get_experiment(self):
         experiment = CitationExperiment()
@@ -488,6 +500,7 @@ class CitationExperimentSetting(object):
         experiment.leaf_cutoff_rate = self.leaf_cutoff_rate
         experiment.verification_iterations = self.verification_iterations
         experiment.folds = self.folds
+        experiment.top_count = self.top_count
         return experiment
 
 
@@ -519,6 +532,23 @@ class CitationExperiment(object):
         self.leaf_cutoff_rate = numpy.nan
         self.verification_iterations = numpy.nan
         self.folds = numpy.nan
+        self.top_count = numpy.nan
+        self.seen_top_inclusion_ground_lifted = numpy.nan
+        self.seen_top_inclusion_ground_verification = numpy.nan
+        self.seen_top_inclusion_lifted_verification = numpy.nan
+        self.unseen_top_inclusion_ground_lifted = numpy.nan
+        self.unseen_top_inclusion_lifted_verification = numpy.nan
+        self.unseen_top_inclusion_ground_verification = numpy.nan
+        self.unseen_top_inclusion_constant_verification = numpy.nan
+        self.unseen_top_inclusion_random_verification = numpy.nan
+        self.seen_top_kt_ground_lifted = numpy.nan
+        self.seen_top_kt_ground_verification = numpy.nan
+        self.seen_top_kt_lifted_verification = numpy.nan
+        self.unseen_top_kt_ground_lifted = numpy.nan
+        self.unseen_top_kt_ground_verification = numpy.nan
+        self.unseen_top_kt_lifted_verification = numpy.nan
+        self.unseen_top_kt_constant_verification = numpy.nan
+        self.unseen_top_kt_random_verification = numpy.nan
 
     @property
     def density(self):
@@ -594,8 +624,9 @@ class CitationExperiment(object):
 
 
 class DataSet(object):
-    def __init__(self, authors, neighbors, sum_papers, median_years):
+    def __init__(self, authors, neighbors, sum_papers, median_years, model_xadd=None):
         self.authors, self.neighbors, self.sum_papers, self.median_years = authors, neighbors, sum_papers, median_years
+        self.model_xadd = model_xadd
 
     @property
     def author_count(self):
@@ -624,6 +655,7 @@ class DataSet(object):
                 return entries
             else:
                 return [entries[i] for i in indices]
+
         sum_papers = filter_entries(self.sum_papers)
         sum_neighbors = map(lambda l: len(l), filter_entries(self.neighbors))
         median_years = filter_entries(self.median_years)
@@ -721,15 +753,23 @@ class ExperimentRunner(object):
 
     @property
     def full_data_set(self):
+        """
+        :rtype: DataSet
+        """
+        self.load_data_set()
+        return self._full_data_set
+
+    def load_data_set(self):
         if self._full_data_set is None:
             input_files_directory = self.input_files_directory if self.input_files_directory is not None else "."
             self._full_data_set = DataSet.import_from_disk(self.timer, input_files_directory)
-        return self._full_data_set
 
-    def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate, folds):
-        authors_file = "{}/authors_{}.txt".format(self.directory, size)
-        coauthors_file = "{}/coauthors_{}.txt".format(self.directory, size)
-        median_years_file = "{}/median_years_{}.txt".format(self.directory, size)
+    def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate, folds,
+            top_count):
+        self.load_data_set()
+        data_size = self.full_data_set.author_count
+        if data_size < size:
+            size = data_size
 
         tree_file = "{}/tree_{}.dot".format(self.directory, size)
         diagram_file = "{}/diagram_{}".format(self.directory, size)
@@ -738,6 +778,8 @@ class ExperimentRunner(object):
         values_ground_file = "{}/ground_value_{}.txt".format(self.directory, size)
         values_full_ground_same_file = "{}/full_ground_value_same_{}.txt".format(self.directory, size)
         values_full_ground_file = "{}/full_ground_value_{}.txt".format(self.directory, size)
+        model_tree_file = "{}/tree.txt".format(self.input_files_directory)
+
         # pool_file = "temp/pool_{}.txt".format(size)
 
         cache_authors = True
@@ -746,7 +788,7 @@ class ExperimentRunner(object):
         timer = Timer()
 
         setting = CitationExperimentSetting(size, copy_rate, damping_factor, tree_depth, iterations, leaf_cutoff_rate,
-                                            100, folds)
+                                            100, folds, top_count)
 
         options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
         subset = self.full_data_set.get_random_subset(size).reload(timer, self.directory, size)
@@ -760,6 +802,37 @@ class ExperimentRunner(object):
         # Below is the iterative part (per bucket)
 
         experiments = []
+        measures = [(
+            KendallTau(),
+            "kendall_tau",
+            "kt_ground_verification",
+            "kt_lifted_verification",
+            "unseen_kendall_tau_lifted_ground",
+            "unseen_kt_ground_verification",
+            "unseen_kt_lifted_verification",
+            "constant_verification",
+            "random_verification",
+        ), (
+            TopInclusion(top_count),
+            "seen_top_inclusion_ground_lifted",
+            "seen_top_inclusion_ground_verification",
+            "seen_top_inclusion_lifted_verification",
+            "unseen_top_inclusion_ground_lifted",
+            "unseen_top_inclusion_ground_verification",
+            "unseen_top_inclusion_lifted_verification",
+            "unseen_top_inclusion_constant_verification",
+            "unseen_top_inclusion_random_verification",
+        ), (
+            TopKT(top_count),
+            "seen_top_kt_ground_lifted",
+            "seen_top_kt_ground_verification",
+            "seen_top_kt_lifted_verification",
+            "unseen_top_kt_ground_lifted",
+            "unseen_top_kt_ground_verification",
+            "unseen_top_kt_lifted_verification",
+            "unseen_top_kt_constant_verification",
+            "unseen_top_kt_random_verification",
+        )]
 
         for i in range(len(buckets)):
             training_indices, testing_indices = buckets[i]
@@ -795,19 +868,21 @@ class ExperimentRunner(object):
             experiment.negative = negative
 
             timer.start("Exporting converged diagram to {}".format(converged_file))
-            task.converged.export(converged_file)
+            lifted_result = task.converged
+            lifted_result.export(converged_file)
 
-            if not cache_ground_values or not os.path.isfile(values_ground_same_file)\
+            if not cache_ground_values or not os.path.isfile(values_ground_same_file) \
                     or not os.path.isfile(values_ground_file):
                 timer.start("Calculating ground pagerank (same number of iterations {})".format(iterations))
                 ground_pagerank_same = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
-                                                            damping_factor=damping_factor,
-                                                            delta=delta, iterations=iterations)
+                                                                 damping_factor=damping_factor,
+                                                                 delta=delta, iterations=iterations)
                 experiment.ground_speed = timer.stop()
 
                 timer.start("Exporting ground pagerank to {}".format(values_ground_same_file))
                 export_ground_pagerank(ground_pagerank_same, values_ground_same_file)
 
+                # Verification
                 verification = experiment.verification_iterations
                 timer.start("Calculating ground pagerank (verification with {} iterations)".format(verification))
                 ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
@@ -819,7 +894,7 @@ class ExperimentRunner(object):
 
                 # Compute PageRank for all examples
                 timer.start("Calculating full ground pagerank (same number of iterations {})".format(iterations))
-                full_ground_pagerank_same =\
+                full_ground_pagerank_same = \
                     calculate_ground_pagerank(timer.sub_time(), subset.authors, subset.neighbors,
                                               damping_factor=damping_factor, delta=delta, iterations=iterations)
                 # experiment.ground_speed = timer.stop()
@@ -828,10 +903,27 @@ class ExperimentRunner(object):
                 export_ground_pagerank(full_ground_pagerank_same, values_full_ground_same_file)
 
                 verification = experiment.verification_iterations
-                timer.start("Calculating full ground pagerank (verification with {} iterations)".format(verification))
-                full_ground_pagerank =\
-                    calculate_ground_pagerank(timer.sub_time(), subset.authors, subset.neighbors,
-                                              damping_factor=damping_factor, delta=delta, iterations=verification)
+                if model_tree_file is None:
+                    timer.start("Calculating full ground pagerank (verification with {} iterations)".format(verification))
+                    full_ground_pagerank = \
+                        calculate_ground_pagerank(timer.sub_time(), subset.authors, subset.neighbors,
+                                                  damping_factor=damping_factor, delta=delta, iterations=verification)
+                else:
+                    pool = Pool()
+                    timer.start("Calculating lifted pagerank (verification with {} iterations)".format(iterations))
+                    model_task = AuthorPagerank(None, None, None, None)
+                    model_task.variables = task.variables  # TODO
+                    row_variables, col_variables = model_task.get_row_column_variables()
+                    for var in row_variables + col_variables:
+                        pool.add_var(var[0], "int")
+                    model_trees = read_xadds(model_tree_file, pool)
+                    model_tree = model_trees[0]
+                    matrix = Matrix(model_tree, row_variables, col_variables)
+                    model_task._compute_pagerank(timer, matrix, model_task.variables, damping_factor, delta, iterations)
+
+                    testing_attributes = subset.get_attributes(testing_indices)
+                    testing_attributes = list(testing_attributes[i] for i in testing_indices)
+                    full_ground_pagerank = model_task.compute_values(testing_attributes)
 
                 timer.start("Exporting verification ground pagerank to {}".format(values_full_ground_file))
                 export_ground_pagerank(full_ground_pagerank, values_full_ground_file)
@@ -841,21 +933,6 @@ class ExperimentRunner(object):
 
             timer.start("Importing ground verification pagerank from {}".format(values_ground_file))
             values_verification = import_ground_value(values_ground_file)
-
-            timer.start("Calculating kendall tau correlation coefficient (ground-lifted)")
-            tau, _ = stats.kendalltau(values_lifted, values_ground)
-            timer.log("KT = {} ((ground-lifted))".format(tau))
-            experiment.kendall_tau = tau
-
-            timer.start("Calculating kendall tau correlation coefficient (ground-verification)")
-            tau, _ = stats.kendalltau(values_ground, values_verification)
-            timer.log("KT = {} (ground-verification)".format(tau))
-            experiment.kt_ground_verification = tau
-
-            timer.start("Calculating kendall tau correlation coefficient (lifted-verification)")
-            tau, _ = stats.kendalltau(values_lifted, values_verification)
-            timer.log("KT = {} (lifted-verification)".format(tau))
-            experiment.kt_lifted_verification = tau
 
             # Compare PageRank for unseen examples
             timer.start("Importing full ground pagerank from {}".format(values_full_ground_same_file))
@@ -870,36 +947,41 @@ class ExperimentRunner(object):
             testing_attributes = list(testing_attributes[i] for i in testing_indices)
             values_full_lifted = task.compute_values(testing_attributes)
 
-            timer.start("Calculating unseen kendall tau correlation coefficient (ground-lifted)")
-            tau, _ = stats.kendalltau(values_full_lifted, values_full_ground)
-            timer.log("KT = {} ((ground-lifted))".format(tau))
-            experiment.unseen_kendall_tau_lifted_ground = tau
-
-            timer.start("Calculating unseen kendall tau correlation coefficient (ground-verification)")
-            tau, _ = stats.kendalltau(values_full_ground, values_full_verification)
-            timer.log("KT = {} (ground-verification)".format(tau))
-            experiment.unseen_kt_ground_verification = tau
-
-            timer.start("Calculating unseen kendall tau correlation coefficient (lifted-verification)")
-            tau, _ = stats.kendalltau(values_full_lifted, values_full_verification)
-            timer.log("KT = {} (lifted-verification)".format(tau))
-            experiment.unseen_kt_lifted_verification = tau
-
-            # Compare baseline pagerank
-            timer.start("Calculating kendall tau correlation coefficient (constant-verification)")
             values_constant = numpy.zeros(len(values_full_verification))
-            tau, _ = stats.kendalltau(values_constant, values_full_verification)
-            timer.log("KT = {} (constant-verification)".format(tau))
-            experiment.constant_verification = tau
-
-            timer.start("Calculating kendall tau correlation coefficient (random-verification)")
+            values_constant[::2] = 1
             values_random = list(random.random() for _ in range(len(values_full_verification)))
-            tau, _ = stats.kendalltau(values_random, values_full_verification)
-            timer.log("KT = {} (random-verification)".format(tau))
-            experiment.random_verification = tau
+
+            for measure in measures:
+                evaluation = measure[0]
+                assert isinstance(evaluation, EvaluationMeasure)
+
+                # Seen (reconstructive)
+                seen_ground = ("ground", values_ground)
+                seen_lifted = ("lifted", values_lifted)
+                seen_verification = ("verification", values_verification)
+
+                setattr(experiment, measure[1], evaluation.evaluate(timer, seen_ground, seen_lifted))
+                setattr(experiment, measure[2], evaluation.evaluate(timer, seen_ground, seen_verification))
+                setattr(experiment, measure[3], evaluation.evaluate(timer, seen_lifted, seen_verification))
+
+                # Unseen (predictive)
+                unseen_ground = ("unseen ground", values_full_ground)
+                unseen_lifted = ("unseen lifted", values_full_lifted)
+                unseen_verification = ("unseen verification", values_full_verification)
+
+                setattr(experiment, measure[4], evaluation.evaluate(timer, unseen_ground, unseen_lifted))
+                setattr(experiment, measure[5], evaluation.evaluate(timer, unseen_ground, unseen_verification))
+                setattr(experiment, measure[6], evaluation.evaluate(timer, unseen_lifted, unseen_verification))
+
+                # Baseline pagerank
+                unseen_constant = ("unseen constant (2)", values_constant)
+                unseen_random = ("unseen random", values_random)
+
+                setattr(experiment, measure[7], evaluation.evaluate(timer, unseen_constant, unseen_verification))
+                setattr(experiment, measure[8], evaluation.evaluate(timer, unseen_random, unseen_verification))
 
             timer.start("Calculating maximum")
-            timer.log(find_optimal_conditions(task.converged.diagram, task.variables))
+            timer.log(find_optimal_conditions(lifted_result.diagram, task.variables))
             timer.stop()
 
             experiments.append(experiment)

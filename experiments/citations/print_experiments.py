@@ -38,6 +38,23 @@ attributes = [
     ("Lifted Speed Grounding", lambda experiment, i: experiment.lifted_speed_grounding),
     ("Lifted Speed", lambda experiment, i: experiment.lifted_speed),
     ("Ground Speed", lambda experiment, i: experiment.ground_speed),
+    ("Top Count", lambda experiment, i: experiment.top_count),
+    ("TI (seen ground-lifted)", lambda experiment, i: experiment.seen_top_inclusion_ground_lifted),
+    ("TI (seen lifted-verification)", lambda experiment, i: experiment.seen_top_inclusion_lifted_verification),
+    ("TI (seen ground-verification)", lambda experiment, i: experiment.seen_top_inclusion_ground_verification),
+    ("TI (unseen ground-lifted)", lambda experiment, i: experiment.unseen_top_inclusion_ground_lifted),
+    ("TI (unseen lifted-verification)", lambda experiment, i: experiment.unseen_top_inclusion_lifted_verification),
+    ("TI (unseen ground-verification)", lambda experiment, i: experiment.unseen_top_inclusion_ground_verification),
+    ("TI (unseen constant-verification)", lambda experiment, i: experiment.unseen_top_inclusion_constant_verification),
+    ("TI (unseen random-verification)", lambda experiment, i: experiment.unseen_top_inclusion_random_verification),
+    ("Top KT (seen ground-lifted)", lambda experiment, i: experiment.seen_top_kt_ground_lifted),
+    ("Top KT (seen lifted-verification)", lambda experiment, i: experiment.seen_top_kt_lifted_verification),
+    ("Top KT (seen ground-verification)", lambda experiment, i: experiment.seen_top_kt_ground_verification),
+    ("Top KT (unseen ground-lifted)", lambda experiment, i: experiment.unseen_top_kt_ground_lifted),
+    ("Top KT (unseen lifted-verification)", lambda experiment, i: experiment.unseen_top_kt_lifted_verification),
+    ("Top KT (unseen ground-verification)", lambda experiment, i: experiment.unseen_top_kt_ground_verification),
+    ("Top KT (unseen constant-verification)", lambda experiment, i: experiment.unseen_top_kt_constant_verification),
+    ("Top KT (unseen random-verification)", lambda experiment, i: experiment.unseen_top_kt_random_verification),
 ]
 
 
@@ -61,10 +78,10 @@ def print_experiments(experiments, print_attributes=None, filename=None):
             print(get_experiments_table(experiments, print_attributes), file=stream)
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("file")
-    arguments = vars(p.parse_args())
-    full_path = arguments["file"]
+    # p = argparse.ArgumentParser()
+    # p.add_argument("file")
+    # arguments = vars(p.parse_args())
+    full_path = "temp_20170330_171103_cfdf110e-14c9-4320-8c5f-a8526281bb12/output_20170330_171543.txt"  #arguments["file"]
     directory = dirname(full_path)
     output_file = basename(full_path)
     print(get_experiments_table(ExperimentRunner.load_experiments(directory, output_file).experiments))
