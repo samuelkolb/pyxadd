@@ -55,6 +55,7 @@ attributes = [
     ("Top KT (unseen ground-verification)", lambda experiment, i: experiment.unseen_top_kt_ground_verification),
     ("Top KT (unseen constant-verification)", lambda experiment, i: experiment.unseen_top_kt_constant_verification),
     ("Top KT (unseen random-verification)", lambda experiment, i: experiment.unseen_top_kt_random_verification),
+    ("Learning sample count", lambda experiment, i: experiment.learning_sample_count),
 ]
 
 

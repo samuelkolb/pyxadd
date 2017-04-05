@@ -149,16 +149,18 @@ class AuthorPagerank(object):
     def variable_names(self):
         return ["f{}".format(i) for i in range(self.attribute_count)]
 
-    def compute_decision_tree(self, timer, authors, attributes, neighbors, options, tree_file):
+    def compute_decision_tree(self, timer, authors, attributes, neighbors, options, tree_file, sample_count=None):
         timer.start("Computing learning examples and labels")
         examples = []
-        labels = []
 
         for i in range(len(authors)):
             for n in neighbors[i]:
                 if i < n:
                     examples.append((i, n))
-                    labels.append(1)
+
+        if sample_count is not None and sample_count < len(examples):
+            examples = random.sample(examples, sample_count)
+        labels = [1] * len(examples)
 
         required = 2 * len(examples)
         forbidden = set(examples)
@@ -200,8 +202,8 @@ class AuthorPagerank(object):
             diagram_variables.append([("{}_{}".format(prefix, name), lb, ub) for name, lb, ub in self.variables])
         return tuple(diagram_variables)
 
-    def compute_pagerank(self, timer, damping_factor, delta, iterations, tree_file=None, diagram_file=None,
-                         diagram_export_file=None, discrete=True, options=None):
+    def compute_pagerank(self, timer, damping_factor, delta, iterations, learning_sample_count=None, tree_file=None,
+                         diagram_file=None, diagram_export_file=None, discrete=True, options=None):
         if self.converged is not None:
             return
 
@@ -221,7 +223,8 @@ class AuthorPagerank(object):
 
         timer.start("Learning decision tree")
         clf, min_attributes, max_attributes = self.compute_decision_tree(timer.sub_time(), authors, attributes,
-                                                                         neighbors, options, tree_file)
+                                                                         neighbors, options, tree_file,
+                                                                         learning_sample_count)
         learning_time += timer.stop()
 
         timer.start("Converting decision tree to XADD")
@@ -481,7 +484,7 @@ def make_histogram(values):
 
 class CitationExperimentSetting(object):
     def __init__(self, size, copy_rate, damping_factor, tree_depth, iterations, leaf_cutoff_rate,
-                 verification_iterations, folds, top_count):
+                 verification_iterations, folds, top_count, learning_sample_count):
         self.size = size
         self.copy_rate = copy_rate
         self.damping_factor = damping_factor
@@ -491,6 +494,7 @@ class CitationExperimentSetting(object):
         self.verification_iterations = verification_iterations
         self.folds = folds
         self.top_count = top_count
+        self.learning_sample_count = learning_sample_count
 
     def get_experiment(self):
         experiment = CitationExperiment()
@@ -503,6 +507,7 @@ class CitationExperimentSetting(object):
         experiment.verification_iterations = self.verification_iterations
         experiment.folds = self.folds
         experiment.top_count = self.top_count
+        experiment.learning_sample_count = self.learning_sample_count
         return experiment
 
 
@@ -551,6 +556,7 @@ class CitationExperiment(object):
         self.unseen_top_kt_lifted_verification = numpy.nan
         self.unseen_top_kt_constant_verification = numpy.nan
         self.unseen_top_kt_random_verification = numpy.nan
+        self.learning_sample_count = numpy.nan
 
     @property
     def density(self):
@@ -767,7 +773,7 @@ class ExperimentRunner(object):
             self._full_data_set = DataSet.import_from_disk(self.timer, input_files_directory)
 
     def run(self, size, delta, iterations, damping_factor, copy_rate, discrete, tree_depth, leaf_cutoff_rate, folds,
-            top_count):
+            top_count, learning_sample_count):
         self.load_data_set()
         data_size = self.full_data_set.author_count
         if data_size < size:
@@ -784,7 +790,7 @@ class ExperimentRunner(object):
         timer = Timer()
 
         setting = CitationExperimentSetting(size, copy_rate, damping_factor, tree_depth, iterations, leaf_cutoff_rate,
-                                            100, folds, top_count)
+                                            100, folds, top_count, learning_sample_count)
 
         options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
         subset = self.full_data_set.get_random_subset(size).reload(timer, self.directory, size)
@@ -855,7 +861,7 @@ class ExperimentRunner(object):
             task = AuthorPagerank(authors, neighbors, sum_papers, median_years)
             task.compute_pagerank(timer.sub_time(), damping_factor=damping_factor, delta=delta, iterations=iterations,
                                   tree_file=tree_file, diagram_file=diagram_file, diagram_export_file=None,
-                                  discrete=discrete, options=options)
+                                  discrete=discrete, options=options, learning_sample_count=learning_sample_count)
             values_lifted = task.values
             experiment.lifted_speed = timer.stop()
             experiment.lifted_speed_learning = task.learning_time

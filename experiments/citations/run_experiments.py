@@ -8,8 +8,9 @@ from experiments.citations.citations import ExperimentRunner, CitationExperiment
 from experiments.citations.print_experiments import print_experiments
 
 
-def main(output=".", size=None, delta=None, iterations=None, damping_factor=None, copy_rate=None, discrete=None,
-         tree_depth=None, leaf_cutoff_rate=None, folds=None, top_count=None, input_files_directory=None):
+def main(output=".", size=None, delta=None, iterations=None, learning_sample_count=None, damping_factor=None,
+         copy_rate=None, discrete=None, tree_depth=None, leaf_cutoff_rate=None, folds=None, top_count=None,
+         input_files_directory=None):
     settings = dict()
     settings["size"] = 500000 if size is None else size
     settings["delta"] = 0 if delta is None else delta
@@ -21,6 +22,7 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
     settings["leaf_cutoff_rate"] = 0.01 if leaf_cutoff_rate is None else leaf_cutoff_rate
     settings["folds"] = 5 if folds is None else folds
     settings["top_count"] = 50 if top_count is None else top_count
+    settings["learning_sample_count"] = learning_sample_count
 
     variable = None
     for name, value in settings.items():
@@ -54,7 +56,8 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
             values["tree_depth"],
             values["leaf_cutoff_rate"],
             values["folds"],
-            values["top_count"]
+            values["top_count"],
+            values["learning_sample_count"]
         )
 
     if variable is None:
@@ -73,4 +76,4 @@ def main(output=".", size=None, delta=None, iterations=None, damping_factor=None
     print_experiments(runner.experiments, filename=table_file)
 
 if __name__ == "__main__":
-    main(output="./log", input_files_directory="./generated/", top_count=10)
+    main(output="./log", input_files_directory="./generated/", learning_sample_count=range(1000, 22000, 5000))
