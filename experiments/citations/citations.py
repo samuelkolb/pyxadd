@@ -364,9 +364,11 @@ class AuthorPagerank(object):
             for j in data_set.neighbors[i]:
                 if j in test_index_set:
                     positive_candidates.add((i, j))
-        if len(positive_candidates) < sample_count:
+        if len(positive_candidates) <= sample_count:
             sample_count = len(positive_candidates)
-        positive_examples = random.sample(positive_candidates, sample_count)
+            positive_examples = list(positive_candidates)
+        else:
+            positive_examples = random.sample(positive_candidates, sample_count)
         negative_candidates = set()
         while len(negative_candidates) < sample_count:
             a1 = random.choice(test_indices)
@@ -771,16 +773,10 @@ class ExperimentRunner(object):
         if data_size < size:
             size = data_size
 
-        tree_file = "{}/tree_{}.dot".format(self.directory, size)
-        diagram_file = "{}/diagram_{}".format(self.directory, size)
-        converged_file = "{}/converged_{}".format(self.directory, size)
-        values_ground_same_file = "{}/ground_value_same_{}.txt".format(self.directory, size)
-        values_ground_file = "{}/ground_value_{}.txt".format(self.directory, size)
-        values_full_ground_same_file = "{}/full_ground_value_same_{}.txt".format(self.directory, size)
-        values_full_ground_file = "{}/full_ground_value_{}.txt".format(self.directory, size)
-        model_tree_file = "{}/tree.txt".format(self.input_files_directory)
-
         # pool_file = "temp/pool_{}.txt".format(size)
+
+        model_tree_file = "{}/tree.txt".format(self.input_files_directory)
+        model_tree_export_file = "{}/model_tree.dot".format(self.directory)
 
         cache_authors = True
         cache_ground_values = False
@@ -793,8 +789,9 @@ class ExperimentRunner(object):
         options = {"max_depth": tree_depth, "min_samples_leaf": int(size * leaf_cutoff_rate)}
         subset = self.full_data_set.get_random_subset(size).reload(timer, self.directory, size)
 
-        timer.start("Copy co-authors (copy rate={})".format(copy_rate))
-        subset = subset.copy_neighbors(copy_rate)
+        if copy_rate > 0:
+            timer.start("Copy co-authors (copy rate={})".format(copy_rate))
+            subset = subset.copy_neighbors(copy_rate)
 
         timer.start("Computing buckets ({} folds)".format(setting.folds))
         buckets = subset.get_buckets(setting.folds)
@@ -835,6 +832,14 @@ class ExperimentRunner(object):
         )]
 
         for i in range(len(buckets)):
+            tree_file = "{}/tree_{}_{}.dot".format(self.directory, size, i)
+            diagram_file = "{}/diagram_{}_{}".format(self.directory, size, i)
+            converged_file = "{}/converged_{}_{}".format(self.directory, size, i)
+            values_ground_same_file = "{}/ground_value_same_{}_{}.txt".format(self.directory, size, i)
+            values_ground_file = "{}/ground_value_{}_{}.txt".format(self.directory, size, i)
+            values_full_ground_same_file = "{}/full_ground_value_same_{}_{}.txt".format(self.directory, size, i)
+            values_full_ground_file = "{}/full_ground_value_{}_{}.txt".format(self.directory, size, i)
+
             training_indices, testing_indices = buckets[i]
             training_set = subset.get_subset(training_indices)
 
@@ -916,14 +921,16 @@ class ExperimentRunner(object):
                     row_variables, col_variables = model_task.get_row_column_variables()
                     for var in row_variables + col_variables:
                         pool.add_var(var[0], "int")
+                    for var in model_task.variables:
+                        pool.add_var(var[0], "int")
                     model_trees = read_xadds(model_tree_file, pool)
                     model_tree = model_trees[0]
                     matrix = Matrix(model_tree, row_variables, col_variables)
                     model_task._compute_pagerank(timer, matrix, model_task.variables, damping_factor, delta, iterations)
 
-                    testing_attributes = subset.get_attributes(testing_indices)
-                    testing_attributes = list(testing_attributes[i] for i in testing_indices)
-                    full_ground_pagerank = model_task.compute_values(testing_attributes)
+                    full_ground_pagerank = model_task.compute_values(subset.get_attributes())
+                    timer.start("Exporting model tree")
+                    matrix.export(model_tree_export_file)
 
                 timer.start("Exporting verification ground pagerank to {}".format(values_full_ground_file))
                 export_ground_pagerank(full_ground_pagerank, values_full_ground_file)
