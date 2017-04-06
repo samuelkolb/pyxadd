@@ -494,7 +494,8 @@ class CitationExperimentSetting(object):
         self.verification_iterations = verification_iterations
         self.folds = folds
         self.top_count = top_count
-        self.learning_sample_count = learning_sample_count
+        if learning_sample_count is not None:
+            self.learning_sample_count = learning_sample_count
 
     def get_experiment(self):
         experiment = CitationExperiment()
@@ -914,7 +915,7 @@ class ExperimentRunner(object):
                 export_ground_pagerank(full_ground_pagerank_same, values_full_ground_same_file)
 
                 verification = experiment.verification_iterations
-                if model_tree_file is None:
+                if not os.path.isfile(model_tree_file):
                     timer.start("Calculating full ground pagerank (verification with {} iterations)".format(verification))
                     full_ground_pagerank = \
                         calculate_ground_pagerank(timer.sub_time(), subset.authors, subset.neighbors,
