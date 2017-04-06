@@ -59,14 +59,22 @@ attributes = [
 ]
 
 
+def interleave(list1, list2):
+    return [val for pair in zip(list1, list2) for val in pair]
+
+
 def get_experiments_table(experiments, print_attributes=None):
     if print_attributes is None:
         print_attributes = attributes
-    header = "\t".join(t[0] for t in print_attributes)
+    titles = [t[0] for t in print_attributes]
+    titles = interleave(titles, ["std dev"] * len(titles))
+    header = "\t".join(titles)
     rows = [header]
     for i in range(len(experiments)):
         experiment = experiments[i]
         values = [numpy.average(list(t[1](e, i) for e in experiment)) for t in print_attributes]
+        deviation = [numpy.std(list(t[1](e, i) for e in experiment)) for t in print_attributes]
+        values = interleave(values, deviation)
         rows.append("\t".join(str(value) for value in values))
     return "\n".join(rows) + "\n"
 
@@ -82,7 +90,7 @@ if __name__ == "__main__":
     # p = argparse.ArgumentParser()
     # p.add_argument("file")
     # arguments = vars(p.parse_args())
-    full_path = "temp_20170330_171103_cfdf110e-14c9-4320-8c5f-a8526281bb12/output_20170330_171543.txt"  #arguments["file"]
+    full_path = "log/temp_20170406_124735_c63b8c59-0c67-4cc7-8616-214dc6ac625d/output_20170406_124931.txt"  #arguments["file"]
     directory = dirname(full_path)
     output_file = basename(full_path)
     print(get_experiments_table(ExperimentRunner.load_experiments(directory, output_file).experiments))
