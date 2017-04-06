@@ -76,4 +76,4 @@ def main(output=".", size=None, delta=None, iterations=None, learning_sample_cou
     print_experiments(runner.experiments, filename=table_file)
 
 if __name__ == "__main__":
-    main(output="./log", input_files_directory="./generated/", learning_sample_count=range(1000, 22000, 5000))
+    main(output="./log", input_files_directory="./models/data_uniform1", top_count=100, learning_sample_count=20000)
