@@ -76,4 +76,6 @@ def main(output=".", size=None, delta=None, iterations=None, learning_sample_cou
     print_experiments(runner.experiments, filename=table_file)
 
 if __name__ == "__main__":
-    main(output="./log", input_files_directory="./models/data_uniform1", top_count=100, learning_sample_count=20000)
+    main(output="./log", input_files_directory="./models/data_uniform1", top_count=100, learning_sample_count=20000,
+         #leaf_cutoff_rate=0.05, damping_factor=[0, 0.2, 0.4, 0.6, 0.8, 1])
+    leaf_cutoff_rate=[0.1, 0.05, 0.01, 0.005, 0.001])

@@ -14,6 +14,7 @@ from experiments.citations.parse import read_xadds
 from experiments.link_prediction import learn_decision_tree, decision_tree_to_xadd, export_classifier
 from experiments.pagerank import pagerank
 from experiments.test import test_pagerank
+from pyxadd.build import Builder
 from pyxadd.diagram import Pool
 from pyxadd.evaluate import mass_evaluate
 from pyxadd.matrix.matrix import Matrix
@@ -896,10 +897,39 @@ class ExperimentRunner(object):
 
                 # Verification
                 verification = experiment.verification_iterations
-                timer.start("Calculating ground pagerank (verification with {} iterations)".format(verification))
-                ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
-                                                            damping_factor=damping_factor,
-                                                            delta=delta, iterations=verification)
+                if os.path.isfile(model_tree_file):
+                    # There is a model
+                    pool = Pool()
+                    timer.start("Calculating lifted pagerank (verification with {} iterations)".format(verification))
+                    model_task = AuthorPagerank(None, None, None, None)
+                    model_task.variables = task.variables  # TODO
+                    row_variables, col_variables = model_task.get_row_column_variables()
+                    for var in row_variables + col_variables:
+                        pool.add_var(var[0], "int")
+                    for var in model_task.variables:
+                        pool.add_var(var[0], "int")
+                    model_trees = read_xadds(model_tree_file, pool)
+                    model_tree = model_trees[0]
+                    build = Builder(pool)
+                    for var, lb, ub in row_variables + col_variables:
+                        model_tree *= build.limit(var, lb, ub)
+                    matrix = Matrix(model_tree, row_variables, col_variables)
+                    # Limit domains
+                    model_variable = model_task.variables
+                    model_task._compute_pagerank(timer, matrix, model_variable, damping_factor, delta,verification)
+                    timer.start("Exporting model tree")
+                    matrix.export(model_tree_export_file)
+                else:
+                    model_task = None
+
+                if model_task is None:
+                    timer.start("Calculating ground pagerank (verification with {} iterations)".format(verification))
+                    ground_pagerank = calculate_ground_pagerank(timer.sub_time(), authors, neighbors,
+                                                                damping_factor=damping_factor,
+                                                                delta=delta, iterations=verification)
+                else:
+                    timer.start("Evaluating model pagerank (training)")
+                    ground_pagerank = model_task.compute_values(training_set.get_attributes())
 
                 timer.start("Exporting verification ground pagerank to {}".format(values_ground_file))
                 export_ground_pagerank(ground_pagerank, values_ground_file)
@@ -915,29 +945,14 @@ class ExperimentRunner(object):
                 export_ground_pagerank(full_ground_pagerank_same, values_full_ground_same_file)
 
                 verification = experiment.verification_iterations
-                if not os.path.isfile(model_tree_file):
+                if model_task is None:
                     timer.start("Calculating full ground pagerank (verification with {} iterations)".format(verification))
                     full_ground_pagerank = \
                         calculate_ground_pagerank(timer.sub_time(), subset.authors, subset.neighbors,
                                                   damping_factor=damping_factor, delta=delta, iterations=verification)
                 else:
-                    pool = Pool()
-                    timer.start("Calculating lifted pagerank (verification with {} iterations)".format(iterations))
-                    model_task = AuthorPagerank(None, None, None, None)
-                    model_task.variables = task.variables  # TODO
-                    row_variables, col_variables = model_task.get_row_column_variables()
-                    for var in row_variables + col_variables:
-                        pool.add_var(var[0], "int")
-                    for var in model_task.variables:
-                        pool.add_var(var[0], "int")
-                    model_trees = read_xadds(model_tree_file, pool)
-                    model_tree = model_trees[0]
-                    matrix = Matrix(model_tree, row_variables, col_variables)
-                    model_task._compute_pagerank(timer, matrix, model_task.variables, damping_factor, delta, iterations)
-
+                    timer.start("Evaluating model pagerank (full)")
                     full_ground_pagerank = model_task.compute_values(subset.get_attributes())
-                    timer.start("Exporting model tree")
-                    matrix.export(model_tree_export_file)
 
                 timer.start("Exporting verification ground pagerank to {}".format(values_full_ground_file))
                 export_ground_pagerank(full_ground_pagerank, values_full_ground_file)
