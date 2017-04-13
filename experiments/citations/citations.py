@@ -135,6 +135,7 @@ class AuthorPagerank(object):
 
         self.attributes = None
         self.converged = None
+        self.matrix = None
         self.values = None
         self.variables = None
         self.clf = None
@@ -241,6 +242,8 @@ class AuthorPagerank(object):
         learning_time += timer.stop()
         self.learning_time = learning_time
 
+        self.matrix = matrix
+
         self._compute_pagerank(timer, matrix, variables, damping_factor, delta, iterations, diagram_file,
                                diagram_export_file)
 
@@ -341,6 +344,9 @@ class AuthorPagerank(object):
         negative = 0
 
         predicted = self.clf.predict(examples)
+        print()
+        for i in range(20):
+            print(examples[i], control[i], predicted[i])
 
         for i in range(len(examples)):
             if control[i] == 1:
@@ -362,17 +368,30 @@ class AuthorPagerank(object):
         :type test_indices: int[]
         :type sample_count: int
         """
+        print()
+        print(test_indices[0:20])
+        print("|testing indices| = {}".format(len(test_indices)))
+
         test_index_set = set(test_indices)
+        print("|testing set| = {}".format(len(test_index_set)))
         positive_candidates = set()
         for i in test_indices:
             for j in data_set.neighbors[i]:
                 if j in test_index_set:
                     positive_candidates.add((i, j))
+
+        print()
+        print(list(positive_candidates)[0:20])
+        print("|positive candidates| = {}".format(len(positive_candidates)))
+
         if len(positive_candidates) <= sample_count:
             sample_count = len(positive_candidates)
             positive_examples = list(positive_candidates)
         else:
             positive_examples = random.sample(positive_candidates, sample_count)
+
+        print("Sample count = {}".format(sample_count))
+
         negative_candidates = set()
         while len(negative_candidates) < sample_count:
             a1 = random.choice(test_indices)
@@ -381,16 +400,38 @@ class AuthorPagerank(object):
             if a1 != a2 and key not in negative_candidates and key not in positive_candidates:
                 negative_candidates.add(key)
 
+        print()
+        print(list(negative_candidates)[0:20])
+        print("|negative candidates| = {}".format(len(negative_candidates)))
+
         sum_papers = [data_set.sum_papers[i] for i in test_indices]
         sum_neighbors = [len(data_set.neighbors[i]) for i in test_indices]
         median_years = [data_set.median_years[i] for i in test_indices]
         attributes = dict(zip(test_indices, zip(sum_papers, sum_neighbors, median_years)))
 
+        print()
+        print(list(attributes[test_indices[i]] for i in range(20)))
+        print("|attribute| = {}".format(len(attributes)))
+
+        print()
         examples = positive_examples + list(negative_candidates)
+        print(examples[0:20])
+        print("|examples| = {}".format(len(examples)))
+
         examples = [attributes[a1] + attributes[a2] for a1, a2 in examples]
+        print(examples[0:20])
+        print("|examples| = {}".format(len(examples)))
+
         control = numpy.zeros(2 * sample_count)
-        control[0:sample_count - 1] = 1
-        return self._compute_accuracy(examples, control)
+        control[0:sample_count] = 1
+        print(control[0:20])
+        print(control[-20:-1])
+        print("|control| = {}".format(len(control)))
+
+        accuracy = self._compute_accuracy(examples, control)
+        print()
+        print("Accuracy = {}".format(accuracy))
+        return accuracy
 
 
 def count_links(neighbors):
@@ -847,6 +888,7 @@ class ExperimentRunner(object):
             values_ground_file = "{}/ground_value_{}_{}.txt".format(self.directory, size, i)
             values_full_ground_same_file = "{}/full_ground_value_same_{}_{}.txt".format(self.directory, size, i)
             values_full_ground_file = "{}/full_ground_value_{}_{}.txt".format(self.directory, size, i)
+            difference_tree_file = "{}/difference_{}_{}.txt".format(self.directory, size, i)
 
             training_indices, testing_indices = buckets[i]
             training_set = subset.get_subset(training_indices)
@@ -899,15 +941,16 @@ class ExperimentRunner(object):
                 verification = experiment.verification_iterations
                 if os.path.isfile(model_tree_file):
                     # There is a model
-                    pool = Pool()
+                    # pool = Pool()
+                    pool = task.matrix.diagram.pool
                     timer.start("Calculating lifted pagerank (verification with {} iterations)".format(verification))
                     model_task = AuthorPagerank(None, None, None, None)
                     model_task.variables = task.variables  # TODO
                     row_variables, col_variables = model_task.get_row_column_variables()
-                    for var in row_variables + col_variables:
-                        pool.add_var(var[0], "int")
-                    for var in model_task.variables:
-                        pool.add_var(var[0], "int")
+                    # for var in row_variables + col_variables:
+                    #     pool.add_var(var[0], "int")
+                    # for var in model_task.variables:
+                    #    pool.add_var(var[0], "int")
                     model_trees = read_xadds(model_tree_file, pool)
                     model_tree = model_trees[0]
                     build = Builder(pool)
@@ -953,6 +996,15 @@ class ExperimentRunner(object):
                 else:
                     timer.start("Evaluating model pagerank (full)")
                     full_ground_pagerank = model_task.compute_values(subset.get_attributes())
+                    timer.start("Computing difference between model and lifted")
+                    difference = task.matrix - matrix
+                    difference = difference.reduce()
+                    difference.export(difference_tree_file)
+                    incorrect = difference.norm(l_norm=1)
+                    total_entries = 1
+                    for var, lb, ub in row_variables + col_variables:
+                        total_entries *= ub - lb + 1
+                    print("{} of {} incorrect ({})".format(incorrect, total_entries, incorrect / float(total_entries)))
 
                 timer.start("Exporting verification ground pagerank to {}".format(values_full_ground_file))
                 export_ground_pagerank(full_ground_pagerank, values_full_ground_file)
