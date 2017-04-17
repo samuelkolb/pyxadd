@@ -13,6 +13,7 @@ from pyxadd.walk import WalkingProfile, ParentsWalker
 
 class TestDiagram(unittest.TestCase):
     def setUp(self):
+        return
         pool = Pool()
         pool.int_var("x")
 
@@ -161,7 +162,15 @@ class TestDiagram(unittest.TestCase):
         self.assertTrue(time_legacy > time_new, "New inversion ({}) not faster than legacy implementation ({})"
                         .format(time_new, time_legacy))
 
-
+    def test_invert_terminal(self):
+        pool = Pool()
+        self.assertEquals(pool.zero_id, pool.invert(pool.one_id))
+        self.assertEquals(pool.one_id, pool.invert(pool.zero_id))
+        try:
+            pool.invert(pool.terminal(2))
+            self.assertTrue(False)
+        except RuntimeError:
+            self.assertTrue(True)
 
 if __name__ == '__main__':
     unittest.main()

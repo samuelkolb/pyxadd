@@ -348,10 +348,18 @@ class Pool:
         :rtype: int
         """
         node = self.get_node(node_id)
-        if node.child_true == self.one_id and node.child_false == self.zero_id:
-            return self.internal(node.test, self.zero_id, self.one_id)
-        elif node.child_true == self.zero_id and node.child_false == self.one_id:
-            return self.internal(node.test, self.one_id, self.zero_id)
+        if not node.is_terminal():
+            if node.child_true == self.one_id and node.child_false == self.zero_id:
+                return self.internal(node.test, self.zero_id, self.one_id)
+            elif node.child_true == self.zero_id and node.child_false == self.one_id:
+                return self.internal(node.test, self.one_id, self.zero_id)
+        else:
+            if node_id == self.one_id:
+                return self.zero_id
+            elif node_id == self.zero_id:
+                return self.one_id
+            else:
+                raise RuntimeError("Cannot invert leaf node that is not one or zero: {}".format(node))
 
         # minus_one = self.terminal("-1")
         # return self.apply(Multiplication, self.apply(Summation, node_id, minus_one), minus_one)
