@@ -5,14 +5,21 @@ from pyxadd import test
 from pyxadd import order
 from pyxadd import operation
 from pyxadd import leaf_transform
+
 import sympy
 ub_cache = {}
 lb_cache = {}
 pool = diagram.Pool()
 
+def two_var_diagram():
+    bounds = b.test("x", ">=", 0) & b.test("x", "<=", 1)
+    bounds &= b.test("y", ">=", 1) & b.test("y", "<=", 3)
+    two = b.test("x", ">=", "y")
+    return b.ite(bounds, b.ite(two, b.terminal("x"), b.terminal("10")), b.terminal(0))
+
 b = build.Builder(pool)
-b.ints("x", "a", "b", "c", "ub", "lb", "bla"	)
-diagram = b.ite(b.test("x", "<=", "a"),
+b.ints("x", "y", "a", "b", "c", "ub", "lb", "bla", "ub", "lb")
+diagram1 = b.ite(b.test("x", "<=", "a"),
                 b.ite(b.test("x", ">=", "b"),
                       b.exp("ub - lb"), b.exp(0)),
                 b.ite(b.test("x", "<=", "c"),
@@ -20,7 +27,9 @@ diagram = b.ite(b.test("x", "<=", "a"),
                 )
 diagram2 = b.ite(b.test("x", ">=", "b"), b.exp("ub - lb"), b.exp(0))
 bounds = b.test("x", ">=", 0) & b.test("x", "<=", 10)
-d = b.ite(bounds, b.terminal("(ub**2 + ub -lb**2 + lb)/2"), b.terminal(0))
+# d = b.ite(bounds, b.terminal("x"), b.terminal(0))
+
+d = two_var_diagram()
 
 def recurse(node_id):
   node = pool.get_node(node_id)
@@ -32,6 +41,12 @@ def recurse(node_id):
        print("Coefficients of x ({}) and y ({})".format(node.test.operator.coefficient("x"), node.test.operator.coefficient("y")))
     print "t", recurse(node.child_true)
     print "f", recurse(node.child_false)
+
+def integrate(node_id, var):
+  def symbolic_integrator(terminal_node, d):
+    assert isinstance(terminal_node, diagram.TerminalNode)
+    return d.pool.terminal(sympy.Sum(terminal_node.expression, (var, "lb", "ub")).doit())
+  return resolve_lb_ub(leaf_transform.transform_leaves(symbolic_integrator, pool.diagram(node_id)), var)
 
 
 def resolve_lb_ub(node_id, var):
@@ -91,9 +106,9 @@ def resolve_lb_ub(node_id, var):
            + pool.diagram(best_ub)).root_id
   else:
     test_node_id = pool.bool_test(node.test)
-    return pool.apply(Summation,
-      pool.apply(Multiplication, test_node_id, ub_lb_diagram(node.child_true, var)),
-      pool.apply(Multiplication, pool.invert(test_node_id), ub_lb_diagram(node.child_false, var)))
+    return pool.apply(operation.Summation,
+      pool.apply(operation.Multiplication, test_node_id, resolve_lb_ub(node.child_true, var)),
+      pool.apply(operation.Multiplication, pool.invert(test_node_id), resolve_lb_ub(node.child_false, var)))
 
 
 #view.export(pool.diagram(some_ub), "../../Dropbox/XADD Matrices/dr_1_someub_{}.dot".format(str(node.test.operator)))
@@ -130,8 +145,8 @@ def resolve_ub(node_id, var, lower_bound, noprint=True):
   else:
     test_node_id = pool.bool_test(node.test)
     return pool.apply(operation.Summation,
-      pool.apply(operation.Multiplication, test_node_id, ub_diagram(node.child_true, var)),
-      pool.apply(operation.Multiplication, pool.invert(test_node_id), ub_diagram(node.child_false, var)))
+      pool.apply(operation.Multiplication, test_node_id, resolve_ub(node.child_true, var, lower_bound)),
+      pool.apply(operation.Multiplication, pool.invert(test_node_id), resolve_ub(node.child_false, var, lower_bound)))
 
 def resolve_lb(node_id, var, upper_bound):
   node = pool.get_node(node_id)
@@ -162,9 +177,9 @@ def resolve_lb(node_id, var, upper_bound):
     return res.root_id
   else:
     test_node_id = pool.bool_test(node.test)
-    return pool.apply(Summation,
-      pool.apply(Multiplication, test_node_id, lb_diagram(node.child_true, var)),
-      pool.apply(Multiplication, pool.invert(test_node_id), lb_diagram(node.child_false, var)))
+    return pool.apply(operation.Summation,
+      pool.apply(operation.Multiplication, test_node_id, resolve_lb(node.child_true, var, upper_bound)),
+      pool.apply(operation.Multiplication, pool.invert(test_node_id), resolve_lb(node.child_false, var, upper_bound)))
 
 def to_exp(op, var):
   expression = sympy.sympify(op.rhs)
@@ -180,7 +195,7 @@ def operator_to_bound(operator, var):
 
 
 def bound_min(operator, node_id, var):
-  node = diagram.pool.get_node(node_id)
+  node = pool.get_node(node_id)
   bound = operator_to_bound(operator, var)
   def leq_leaf(lb_cache, bound, node, diagram):
     if not node.is_terminal():
@@ -196,7 +211,7 @@ def bound_min(operator, node_id, var):
     return leaf_transform.transform_leaves(lambda x, y: leq_leaf(lb_cache, bound, x, y), pool.diagram(node_id))
 
 def bound_max(operator, node_id, var):
-  node = diagram.pool.get_node(node_id)
+  node = pool.get_node(node_id)
   bound = operator_to_bound(operator, var)
   def geq_leaf(ub_cache, bound, node, diagram):
     if not node.is_terminal():
@@ -292,10 +307,10 @@ print(pool.get_node(resolved_node_id).test.operator)
 #print("Diagram is {}ordered".format("" if order.is_ordered(pool.diagram(dr)) else "not "))
 #view.export(pool.diagram(dr), "../../Dropbox/XADD Matrices/test.dot")
 test_diagram = d
-view.export(test_diagram, "../../Dropbox/XADD Matrices/diagram.dot")
+view.export(test_diagram, "diagram.dot")
 #dr = dag_resolve("x", operator_1, diagram.root_id, "leq", "ub")
 #view.export(pool.diagram(dr), "../../Dropbox/XADD Matrices/dr.dot")
 # recurse(diagram.root_id)
-dr = resolve_lb_ub(test_diagram.root_id, "x")
+dr = integrate(test_diagram.root_id, "x")
 #fm = fourier_motzkin(bounds.root_id, "ub")
-view.export(pool.diagram(dr), "../../Dropbox/XADD Matrices/result.dot")
+view.export(pool.diagram(dr), "result.dot")
