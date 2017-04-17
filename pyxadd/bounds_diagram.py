@@ -20,7 +20,7 @@ diagram = b.ite(b.test("x", "<=", "a"),
                 )
 diagram2 = b.ite(b.test("x", ">=", "b"), b.exp("ub - lb"), b.exp(0))
 bounds = b.test("x", ">=", 0) & b.test("x", "<=", 10)
-d = b.ite(bounds, b.terminal("(ub**2 -ub -lb**2 - lb)/2"), b.terminal(0))
+d = b.ite(bounds, b.terminal("(ub**2 + ub -lb**2 + lb)/2"), b.terminal(0))
 
 def recurse(node_id):
   node = pool.get_node(node_id)
