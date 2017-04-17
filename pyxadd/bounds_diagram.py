@@ -5,6 +5,7 @@ from pyxadd import test
 from pyxadd import order
 from pyxadd import operation
 from pyxadd import leaf_transform
+from pyxadd import reduce
 
 import sympy
 ub_cache = {}
@@ -126,7 +127,7 @@ def resolve_ub(node_id, var, lower_bound, noprint=True):
       non_ub = resolve_ub(node.child_false, var, lower_bound)
       print "res", lower_bound, node.test.operator
       resolve_test = resolve(var, lower_bound, node.test.operator, "", "ub")
-      print "resolve test", pool.get_node(resolve_test)
+      print("Resolve test (resolve_ub true branch) {}".format(pool.get_node(resolve_test)))
       res = b.ite(pool.diagram(resolve_test), 
                   pool.diagram(best_ub) + pool.diagram(some_ub),
                   pool.diagram(non_ub)
@@ -138,7 +139,8 @@ def resolve_ub(node_id, var, lower_bound, noprint=True):
                           resolve_ub(node.child_false, var, lower_bound), var)
       non_ub = resolve_ub(node.child_true, var, lower_bound)
       resolve_test = resolve(var, lower_bound, (~node.test.operator).to_canonical(), "", "ub") 
-      res = b.ite(pool.diagram(resolve_test), 
+      print("Resolve test (resolve_ub else branch) {}".format(pool.get_node(resolve_test)))
+      res = b.ite(pool.diagram(resolve_test),
                   pool.diagram(non_ub),
                   pool.diagram(best_ub) + pool.diagram(some_ub)
                   )
@@ -162,7 +164,8 @@ def resolve_lb(node_id, var, upper_bound):
                           resolve_lb(node.child_true, var, upper_bound), var)
       non_lb = resolve_lb(node.child_false, var, upper_bound)
       resolve_test = resolve(var, upper_bound, node.test.operator, "", "lb")
-      res = b.ite(pool.diagram(resolve_test), 
+      print("Resolve test (resolve_lb true branch) {}".format(pool.get_node(resolve_test)))
+      res = b.ite(pool.diagram(resolve_test),
                   pool.diagram(best_lb) + pool.diagram(some_lb),
                   pool.diagram(non_lb)
                   )
@@ -171,10 +174,11 @@ def resolve_lb(node_id, var, upper_bound):
       some_lb = bound_min((~node.test.operator).to_canonical(),
                           resolve_lb(node.child_false, var, upper_bound), var)
       non_lb = resolve_lb(node.child_true, var, upper_bound)
-      resolve_test = resolve(var, upper_bound, node.test.operator, "", "lb")
+      resolve_test = resolve(var, upper_bound, (~node.test.operator).to_canonical(), "", "lb")
+      print("Resolve test (resolve_lb else branch) {}".format(pool.get_node(resolve_test)))
       res = b.ite(pool.diagram(resolve_test), 
-                  pool.diagram(best_lb) + pool.diagram(some_lb),
-                  pool.diagram(non_lb)
+                  pool.diagram(non_lb),
+                  pool.diagram(best_lb) + pool.diagram(some_lb)
                   )
     return res.root_id
   else:
@@ -192,10 +196,21 @@ def to_exp(op, var):
   return expression
 
 def operator_to_bound(operator, var):
+  # TODO Check for integer division
   bound = operator.times(1 / operator.coefficient(var)).weak()
   exp_pos = to_exp(bound, var) 
   return exp_pos
 
+def simplify(linear_test, true_diagram, false_diagram):
+    if linear_test.operator.is_tautology():
+        if linear_test.operator.rhs < 0:
+            # Infeasible
+            return false_diagram
+        else:
+            # Tautoogy
+            return true_diagram
+    else:
+        return b.ite(pool.diagram(pool.bool_test(linear_test)), true_diagram, false_diagram)
 
 def bound_min(operator, node_id, var):
   node = pool.get_node(node_id)
@@ -204,8 +219,9 @@ def bound_min(operator, node_id, var):
     if not node.is_terminal():
       raise RuntimeError("Node not terminal, wtf")
     if node.node_id in lb_cache:
-      res = b.ite(b.test(lb_cache[node.node_id], ">", bound),
-                  node.expression, b.exp(sympy.sympify("0")))  
+      res = simplify(test.LinearTest(lb_cache[node.node_id], ">", bound),
+                  b.exp(node.expression), b.exp(sympy.sympify("0")))
+      print("Created bound (min) {}".format(res.root_node))
       return res.root_id
     else: return pool.zero_id
   if node.is_terminal():
@@ -220,8 +236,9 @@ def bound_max(operator, node_id, var):
     if not node.is_terminal():
       raise RuntimeError("Node not terminal, wtf")
     if node.node_id in ub_cache:
-      res = b.ite(b.test(ub_cache[node.node_id], "<", bound),
-                  node.expression, b.exp(sympy.sympify("0")))  
+      res = simplify(test.LinearTest(ub_cache[node.node_id], "<", bound),
+                  b.exp(node.expression), b.exp(sympy.sympify("0")))
+      print("Created bound (max) {}".format(res.root_node))
       return res.root_id
     else: return pool.zero_id
   if node.is_terminal():
@@ -249,7 +266,8 @@ def dag_resolve(var, operator, node_id, direction, bound_type, substitute=False,
     dr_false = dag_resolve(var, operator, node.child_false, direction,
                            bound_type, substitute=substitute, consume=consume)
     if consume:
-      res = b.ite(pool.diagram(resolve_true) * pool.diagram(resolve_false), 
+      test_diagram = pool.diagram(resolve_true) * pool.diagram(resolve_false)
+      res = b.ite(test_diagram,
                   pool.diagram(dr_true),
                   pool.diagram(dr_false)
                   )
@@ -283,14 +301,21 @@ def resolve(var, operator_rhs, operator_lhs, direction, bound_type):
       res = operator_lhs.resolve(var, operator_rhs.switch_direction())
     else:
       res = operator_lhs.resolve(var, operator_rhs)
-    print ",".join([str(u) for u in [operator_rhs, operator_lhs, res]])
-    zero = True
-    for var in res.variables:
-      if res.coefficient != 0:
-        zero = False
-        break
-    if zero:
-      return pool.terminal(1)
+    res = res.to_canonical()
+    # print ",".join([str(u) for u in [operator_rhs, operator_lhs, res]])
+    print("Resolving ({}) and ({}) = ({})".format(operator_rhs, operator_lhs, res))
+    if res.is_tautology():
+        if res.rhs < 0:
+            return pool.terminal(0)
+        else:
+            return pool.terminal(1)
+    # zero = True
+    # for var in res.variables:
+    #   if res.coefficient != 0:
+    #     zero = False
+    #     break
+    # if zero:
+    #   return pool.terminal(1)
     return pool.bool_test(test.LinearTest(res))
 
 
@@ -315,5 +340,15 @@ view.export(test_diagram, "diagram.dot")
 #view.export(pool.diagram(dr), "../../Dropbox/XADD Matrices/dr.dot")
 # recurse(diagram.root_id)
 dr = integrate(test_diagram.root_id, "x")
-#fm = fourier_motzkin(bounds.root_id, "ub")
 view.export(pool.diagram(dr), "result.dot")
+
+dr = reduce.LinearReduction(pool).reduce(dr)
+#fm = fourier_motzkin(bounds.root_id, "ub")
+view.export(pool.diagram(dr), "result_reduced.dot")
+
+d_const = pool.diagram(dr)
+for y in range(-20, 20):
+    s = 0
+    for x in range(-20, 20):
+        s += d.evaluate({"x": x, "y": y})
+    print(s - d_const.evaluate({"y": y}))

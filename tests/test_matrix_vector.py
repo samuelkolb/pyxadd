@@ -60,6 +60,7 @@ class TestMatrixVector(unittest.TestCase):
 
         summed = Diagram(pool, SummationWalker(d, "x").walk())
         d_const = summed.reduce(["y"])
+        export(d_const, "summed_reduced.dot")
         for y in range(-20, 20):
             s = 0
             for x in range(-20, 20):
