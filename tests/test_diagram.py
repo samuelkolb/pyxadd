@@ -13,7 +13,6 @@ from pyxadd.walk import WalkingProfile, ParentsWalker
 
 class TestDiagram(unittest.TestCase):
     def setUp(self):
-        return
         pool = Pool()
         pool.int_var("x")
 
