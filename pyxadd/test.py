@@ -150,6 +150,7 @@ class Operator:
         """
         expression = lhs - rhs
         lhs = {str(var): float(expression.coeff(var, 1)) for var in expression.free_symbols}
+        lhs = {var: coefficient for var, coefficient in lhs.items() if coefficient != 0}
         rhs = float(-sympy.lambdify(expression.free_symbols, expression)(*([0] * len(expression.free_symbols))))
         operator = Operator.constructors[symbol](lhs, rhs)
         return operator
