@@ -62,6 +62,12 @@ class Operator:
         """
         raise NotImplementedError()
 
+    def switch_direction(self):
+        """
+        Switches the direction of the inequality, e.g. x <= a becomes x >= a
+        """
+        raise NotImplementedError()
+
     def _update(self, lhs, rhs):
         raise NotImplementedError()
 
@@ -88,7 +94,17 @@ class Operator:
         rhs = self.rhs * constant
         operator = self if constant >= 0 else self.flip()
         return operator._update(lhs, rhs)
-
+    
+    def operator_add(self, other):
+        assert isinstance(other, Operator)
+        assert self.symbol == other.symbol
+        variables = set(self.lhs.keys()) | set(other.lhs.keys())
+        new_coefficients = {var: self.coefficient(var) + other.coefficient(var) for var in variables}
+        new_coefficients = {var: coefficient for var, coefficient in new_coefficients.items() if coefficient != 0}
+        new_constant = self.rhs + other.rhs
+        return self._update(new_coefficients, new_constant)
+           
+    
     def is_singular(self):
         return len(self.lhs) == 1
 
@@ -105,6 +121,22 @@ class Operator:
     def evaluate_values(self, lhs_value, rhs_value):
         raise NotImplementedError()
 
+    def resolve(self, variable, other):
+        # returns self - k*other <= 0
+        operator_self = self.to_canonical()
+        operator_other = other.to_canonical()
+
+        coefficient_self = operator_self.coefficient(variable)
+        coefficient_other = operator_other.coefficient(variable)
+        if coefficient_self * coefficient_other >= 0:
+            raise RuntimeError("Coefficients either have same sign or at least one of them is 0 " +
+                               "(self: {}, other: {}).".format(coefficient_self, coefficient_other))
+        self_scaled = operator_self.times(abs(coefficient_other))
+        other_scaled = operator_other.times(abs(coefficient_self))
+        result = self_scaled.operator_add(other_scaled)
+        assert variable not in result.variables
+        return result
+   
     def __repr__(self):
         return "{} {} {}".format(" + ".join("{}*{}".format(v, k) for k, v in self.lhs.items()), self.symbol, self.rhs)
 
@@ -189,6 +221,9 @@ class LessThan(Operator):
     def flip(self):
         return GreaterThan(self.invert_lhs(), -self.rhs)
 
+    def switch_direction(self):
+        return GreaterThan(self.lhs, self.rhs)
+
     def _update_bounds(self, lb, ub):
         return lb, min(ub, self.rhs - 1)
 
@@ -217,6 +252,9 @@ class GreaterThan(Operator):
 
     def flip(self):
         return LessThan(self.invert_lhs(), -self.rhs)
+
+    def switch_direction(self):
+        return LessThan(self.lhs, self.rhs)
 
     def _update_bounds(self, lb, ub):
         return max(lb, self.rhs + 1), ub
@@ -247,6 +285,9 @@ class LessThanEqual(Operator):
     def flip(self):
         return GreaterThanEqual(self.invert_lhs(), -self.rhs)
 
+    def switch_direction(self):
+        return GreaterThanEqual(self.lhs, self.rhs)
+
     def _update_bounds(self, lb, ub):
         return lb, min(ub, self.rhs)
 
@@ -275,6 +316,9 @@ class GreaterThanEqual(Operator):
 
     def flip(self):
         return LessThanEqual(self.invert_lhs(), -self.rhs)
+
+    def switch_direction(self):
+        return LessThanEqual(self.lhs, self.rhs)
 
     def _update_bounds(self, lb, ub):
         return max(lb, self.rhs), ub
