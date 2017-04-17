@@ -105,6 +105,7 @@ def resolve_lb_ub(node_id, var):
            + pool.diagram(some_ub) 
            + pool.diagram(best_ub)).root_id
   else:
+    print "indep brach ublb", node.test.operator
     test_node_id = pool.bool_test(node.test)
     return pool.apply(operation.Summation,
       pool.apply(operation.Multiplication, test_node_id, resolve_lb_ub(node.child_true, var)),
@@ -143,6 +144,7 @@ def resolve_ub(node_id, var, lower_bound, noprint=True):
                   )
     return res.root_id
   else:
+    print "indep brach ub", node.test.operator
     test_node_id = pool.bool_test(node.test)
     return pool.apply(operation.Summation,
       pool.apply(operation.Multiplication, test_node_id, resolve_ub(node.child_true, var, lower_bound)),
@@ -176,6 +178,7 @@ def resolve_lb(node_id, var, upper_bound):
                   )
     return res.root_id
   else:
+    print "indep brach lb", node.test.operator
     test_node_id = pool.bool_test(node.test)
     return pool.apply(operation.Summation,
       pool.apply(operation.Multiplication, test_node_id, resolve_lb(node.child_true, var, upper_bound)),
@@ -259,8 +262,8 @@ def dag_resolve(var, operator, node_id, direction, bound_type, substitute=False,
   else:
     test_node_id = pool.bool_test(node.test)
     return pool.apply(operation.Summation,
-      pool.apply(operation.Multiplication, test_node_id, dag_resolve(var, operator, node.child_true, direction, bound_type, substitute=substitute)),
-      pool.apply(operation.Multiplication, pool.invert(test_node_id), dag_resolve(var, operator, node.child_false, direction, bound_type, substitute=substitute)))
+      pool.apply(operation.Multiplication, test_node_id, dag_resolve(var, operator, node.child_true, direction, bound_type, consume=consume, substitute=substitute)),
+      pool.apply(operation.Multiplication, pool.invert(test_node_id), dag_resolve(var, operator, node.child_false, direction, bound_type, consume=consume, substitute=substitute)))
 
 def resolve(var, operator_rhs, operator_lhs, direction, bound_type):
   lhs_coefficient = operator_lhs.coefficient(var)
