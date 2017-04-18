@@ -1,8 +1,7 @@
 from pyxadd import build
 from pyxadd import diagram
-from pyxadd import view
+from pyxadd import view as exporting
 from pyxadd import test
-from pyxadd import order
 from pyxadd import operation
 from pyxadd import leaf_transform
 from pyxadd import reduce
@@ -11,8 +10,15 @@ import sympy
 
 
 class BoundResolve(object):
-    def __init__(self, pool):
+    def __init__(self, pool, debug_path=None):
         self.pool = pool
+        self.debug_path = debug_path
+
+    def export(self, diagram_to_export, name):
+        if self.debug_path is not None:
+            if not name.endswith(".dot"):
+                name += ".dot"
+            exporting.export(diagram_to_export, "{}/{}".format(self.debug_path, name))
 
     def integrate(self, node_id, var):
         def symbolic_integrator(terminal_node, d):
@@ -20,7 +26,7 @@ class BoundResolve(object):
             return d.pool.terminal(sympy.Sum(terminal_node.expression, (var, "lb", "ub")).doit())
 
         integrated = leaf_transform.transform_leaves(symbolic_integrator, self.pool.diagram(node_id))
-        view.export(self.pool.diagram(integrated), "../../Dropbox/XADD Matrices/integrated.dot")
+        self.export(self.pool.diagram(integrated), "integrated")
         return self.resolve_lb_ub(integrated, var)
 
     def resolve_lb_ub(self, node_id, var):
@@ -41,28 +47,28 @@ class BoundResolve(object):
                 # case 2: root.test is not going to be the ub, we need to make root
                 # -> it needs to be lower than all other ubs; bound_max will append
                 # a comparison of node.test.operator > ub(leaf) before each leaf.
-                view.export(self.pool.diagram(best_ub), "../../Dropbox/XADD Matrices/bestubU{}.dot".format(node_id))
+                self.export(self.pool.diagram(best_ub), "bestubU{}".format(node_id))
                 some_ub = self.bound_max(node.test.operator,
                                          self.resolve_lb_ub(node.child_true, var), var)
-                view.export(self.pool.diagram(some_ub), "../../Dropbox/XADD Matrices/someubU{}.dot".format(node_id))
+                self.export(self.pool.diagram(some_ub), "someubU{}".format(node_id))
                 # case 3: test is false, then root.test is the lower bound
                 # -> make root.test larger than all other lbs
                 best_lb = self.resolve_ub(self.dag_resolve(var, (~node.test.operator).to_canonical(), "geq",
                                                            node.child_false, "lb"),
                                           var, (~node.test.operator).to_canonical())
-                view.export(self.pool.diagram(best_lb), "../../Dropbox/XADD Matrices/bestlbU{}.dot".format(node_id))
+                self.export(self.pool.diagram(best_lb), "bestlbU{}".format(node_id))
                 # case 4:
                 some_lb = self.bound_min((~node.test.operator).to_canonical(),
                                          self.resolve_lb_ub(node.child_false, var),
                                          var)
-                view.export(self.pool.diagram(some_lb), "../../Dropbox/XADD Matrices/somelbU{}.dot".format(node_id))
+                self.export(self.pool.diagram(some_lb), "somelbU{}".format(node_id))
             else:
                 # split into cases
                 # case 1:
                 best_lb = self.resolve_ub(self.dag_resolve(var, node.test.operator, "geq",
                                                            node.child_true, "lb"),
                                           var, node.test.operator)
-                view.export(self.pool.diagram(best_lb), "../../Dropbox/XADD Matrices/bestlbL{}.dot".format(node_id))
+                self.export(self.pool.diagram(best_lb), "bestlbL{}".format(node_id))
                 # case 2:
                 some_lb = self.bound_min(node.test.operator,
                                          self.resolve_lb_ub(node.child_true, var),
@@ -71,16 +77,16 @@ class BoundResolve(object):
                 # print "Asdf"
                 # exit()
                 # case 3:
-                view.export(self.pool.diagram(some_lb), "../../Dropbox/XADD Matrices/somelbL{}.dot".format(node_id))
+                self.export(self.pool.diagram(some_lb), "somelbL{}".format(node_id))
                 best_ub = self.resolve_lb(self.dag_resolve(var, (~node.test.operator).to_canonical(), "leq",
                                                            node.child_false, "ub"),
                                           var, (~node.test.operator).to_canonical())
                 # case 4:
-                view.export(self.pool.diagram(best_ub), "../../Dropbox/XADD Matrices/bestubL{}.dot".format(node_id))
+                self.export(self.pool.diagram(best_ub), "bestubL{}".format(node_id))
                 some_ub = self.bound_max((~node.test.operator).to_canonical(),
                                          self.resolve_lb_ub(node.child_false, var),
                                          var)
-                view.export(self.pool.diagram(some_ub), "../../Dropbox/XADD Matrices/someubL{}.dot".format(node_id))
+                self.export(self.pool.diagram(some_ub), "someubL{}".format(node_id))
             return (self.pool.diagram(some_lb)
                     + self.pool.diagram(best_lb)
                     + self.pool.diagram(some_ub)
@@ -98,21 +104,19 @@ class BoundResolve(object):
         node = self.pool.get_node(node_id)
         if node.is_terminal():
             return node_id
-        print "Resolve_ub with {}x{} {}x{}".format(node.test.operator, node_id, lower_bound, hash(str(lower_bound)))
-        view.export(self.pool.diagram(node_id),
-                    "../../Dropbox/XADD Matrices/ub_debugnid{}x{}.dot".format(node_id, hash(str(lower_bound))))
+        print("Resolve_ub with {}x{} {}x{}".format(node.test.operator, node_id, lower_bound, hash(str(lower_bound))))
+        self.export(self.pool.diagram(node_id), "ub_debugnid{}x{}".format(node_id, hash(str(lower_bound))))
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
             if var_coefficient > 0:
                 best_ub = self.dag_resolve(var, node.test.operator, "leq", node.child_true, "ub", consume=True)
-                view.export(self.pool.diagram(best_ub), "../../Dropbox/XADD Matrices/bestub_69.dot")
+                self.export(self.pool.diagram(best_ub), "bestub_69")
                 some_ub = self.bound_max(node.test.operator,
                                          self.resolve_ub(node.child_true, var, lower_bound), var)
-                view.export(self.pool.diagram(self.resolve_ub(node.child_true, var, lower_bound)),
-                            "../../Dropbox/XADD Matrices/resub_69.dot")
-                view.export(self.pool.diagram(some_ub), "../../Dropbox/XADD Matrices/someub_69.dot")
+                self.export(self.pool.diagram(self.resolve_ub(node.child_true, var, lower_bound)), "resub_69")
+                self.export(self.pool.diagram(some_ub), "someub_69")
                 non_ub = self.resolve_ub(node.child_false, var, lower_bound)
-                view.export(self.pool.diagram(non_ub), "../../Dropbox/XADD Matrices/nonub_69.dot")
+                self.export(self.pool.diagram(non_ub), "nonub_69")
                 resolve_test = self.resolve(var, lower_bound, "", node.test.operator, "ub")
                 print("Resolve test (resolve_ub true branch) {}".format(self.pool.get_node(resolve_test)))
                 res = b.ite(self.pool.diagram(resolve_test),
@@ -120,7 +124,6 @@ class BoundResolve(object):
                             self.pool.diagram(non_ub)
                             )
             else:
-                if node_id == 66: print "NODE 66 FALSE"
                 best_ub = self.dag_resolve(var, (~node.test.operator).to_canonical(),
                                            "leq", node.child_false, "ub", consume=True)
                 some_ub = self.bound_max((~node.test.operator).to_canonical(),
@@ -132,8 +135,8 @@ class BoundResolve(object):
                             self.pool.diagram(best_ub) + self.pool.diagram(some_ub),
                             self.pool.diagram(non_ub)
                             )
-            view.export(self.pool.diagram(res.root_id),
-                        "../../Dropbox/XADD Matrices/ub_res_debugnid{}x{}.dot".format(node_id, hash(str(lower_bound))))
+            self.export(self.pool.diagram(res.root_id),
+                        "ub_res_debugnid{}x{}".format(node_id, hash(str(lower_bound))))
             return res.root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
@@ -147,9 +150,8 @@ class BoundResolve(object):
         node = self.pool.get_node(node_id)
         if node.is_terminal():
             return self.pool.zero_id
-        print "Resolve_lb with {}x{} {}x{}".format(node.test.operator, node_id, upper_bound, hash(str(upper_bound)))
-        view.export(self.pool.diagram(node_id),
-                    "../../Dropbox/XADD Matrices/reslb_debugnid{}x{}.dot".format(node_id, hash(str(upper_bound))))
+        print("Resolve_lb with {}x{} {}x{}".format(node.test.operator, node_id, upper_bound, hash(str(upper_bound))))
+        self.export(self.pool.diagram(node_id), "reslb_debugnid{}x{}".format(node_id, hash(str(upper_bound))))
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
             if var_coefficient < 0:
@@ -174,8 +176,6 @@ class BoundResolve(object):
                             self.pool.diagram(best_lb) + self.pool.diagram(some_lb),
                             self.pool.diagram(non_lb)
                             )
-            if node_id == 103:
-                view.export(res, "../../Dropbox/XADD Matrices/reslb_103.dot")
             return res.root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
@@ -292,7 +292,7 @@ class BoundResolve(object):
             print("resolved {}".format(self.pool.get_node(res.root_id)))
             print(self.pool.get_node(self.pool.get_node(res.root_id).child_true),
                   self.pool.get_node(self.pool.get_node(res.root_id).child_false))
-            view.export(res, "../../Dropbox/XADD Matrices/dr_debugnid{}x{}.dot".format(node_id, hash(str(operator))))
+            self.export(res, "dr_debugnid{}x{}".format(node_id, hash(str(operator))))
             return res.root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
@@ -407,16 +407,16 @@ if __name__ == "__main__":
     # print("Diagram is {}ordered".format("" if order.is_ordered(pool.diagram(dr)) else "not "))
     # view.export(pool.diagram(dr), "../../Dropbox/XADD Matrices/test.dot")
     test_diagram = d
-    view.export(test_diagram, "../../Dropbox/XADD Matrices/diagram.dot")
+    bound_resolve.export(test_diagram, "diagram")
     # dr = dag_resolve("x", operator_1, diagram.root_id, "leq", "ub")
     # view.export(pool.diagram(dr), "../../Dropbox/XADD Matrices/dr.dot")
     # recurse(diagram.root_id)
     dr = bound_resolve.integrate(test_diagram.root_id, "x")
-    view.export(the_pool.diagram(dr), "../../Dropbox/XADD Matrices/result.dot")
+    bound_resolve.export(the_pool.diagram(dr), "result")
 
     dr = reduce.LinearReduction(the_pool).reduce(dr)
     # fm = fourier_motzkin(bounds.root_id, "ub")
-    view.export(the_pool.diagram(dr), "../../Dropbox/XADD Matrices/result_reduced.dot")
+    bound_resolve.export(the_pool.diagram(dr), "result_reduced")
 
     d_const = the_pool.diagram(dr)
     for y in range(-20, 20):

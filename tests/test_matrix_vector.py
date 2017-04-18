@@ -6,9 +6,8 @@ from pyxadd.build import Builder
 from pyxadd.diagram import Diagram, Pool
 from pyxadd.matrix_vector import SummationWalker, matrix_multiply
 from pyxadd.partial import PartialWalker
-from pyxadd.reduce import SmtReduce, LinearReduction
+from pyxadd.reduce import LinearReduction
 from pyxadd.test import LinearTest
-from pyxadd.view import export
 
 
 class TestMatrixVector(unittest.TestCase):
@@ -60,7 +59,6 @@ class TestMatrixVector(unittest.TestCase):
 
         summed = Diagram(pool, SummationWalker(d, "x").walk())
         d_const = summed.reduce(["y"])
-        export(d_const, "summed_reduced.dot")
         for y in range(-20, 20):
             s = 0
             for x in range(-20, 20):
