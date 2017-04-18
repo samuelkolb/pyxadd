@@ -33,6 +33,8 @@ class TestMatrixVector(unittest.TestCase):
         bounds = b.test("x", ">=", 0) & b.test("x", "<=", 10)
         d = b.ite(bounds, b.terminal("x"), b.terminal(0))
         d_const = Diagram(pool, SummationWalker(d, "x").walk())
+        # from pyxadd import bounds_diagram
+        # d_const = pool.diagram(bounds_diagram.BoundResolve(pool).integrate(d.root_id, "x"))
         self.assertEqual(55, d_const.evaluate({}))
 
     def test_summation_two_var(self):
@@ -44,6 +46,8 @@ class TestMatrixVector(unittest.TestCase):
         bounds &= b.test("y", ">=", 0) & b.test("y", "<=", 1)
         d = b.ite(bounds, b.terminal("x"), b.terminal(0))
         d_const = Diagram(pool, SummationWalker(d, "x").walk())
+        # from pyxadd import bounds_diagram
+        # d_const = pool.diagram(bounds_diagram.BoundResolve(pool).integrate(d.root_id, "x"))
         for y in range(2):
             self.assertEqual(55, d_const.evaluate({"y": y}))
 
@@ -58,6 +62,8 @@ class TestMatrixVector(unittest.TestCase):
         d = b.ite(bounds, b.ite(two, b.terminal("x"), b.terminal("10")), b.terminal(0))
 
         summed = Diagram(pool, SummationWalker(d, "x").walk())
+        # from pyxadd import bounds_diagram
+        # summed = pool.diagram(bounds_diagram.BoundResolve(pool).integrate(d.root_id, "x"))
         d_const = summed.reduce(["y"])
         for y in range(-20, 20):
             s = 0
@@ -66,7 +72,11 @@ class TestMatrixVector(unittest.TestCase):
             self.assertEqual(s, d_const.evaluate({"y": y}))
 
     def test_mixed_symbolic(self):
-        diagram_y = Diagram(self.diagram.pool, SummationWalker(self.diagram, "x").walk())
+        pool = self.diagram.pool
+        diagram_y = Diagram(pool, SummationWalker(self.diagram, "x").walk())
+        # from pyxadd import bounds_diagram
+        # diagram_y = pool.diagram(bounds_diagram.BoundResolve(pool).integrate(diagram_y.root_id, "x"))
+
         diagram_y = Diagram(diagram_y.pool, LinearReduction(diagram_y.pool).reduce(diagram_y.root_node.node_id, ["y"]))
 
         for y in range(0, 12):

@@ -12,7 +12,12 @@ import sympy
 class BoundResolve(object):
     def __init__(self, pool, debug_path=None):
         self.pool = pool
+        self.pool.add_var("_lb", "int")
+        self.pool.add_var("_ub", "int")
         self.debug_path = debug_path
+        self.ub_cache = None
+        self.lb_cache = None
+        self.builder = build.Builder(pool)
 
     def export(self, diagram_to_export, name):
         if self.debug_path is not None:
@@ -21,13 +26,18 @@ class BoundResolve(object):
             exporting.export(diagram_to_export, "{}/{}".format(self.debug_path, name))
 
     def integrate(self, node_id, var):
+        self.ub_cache = {}
+        self.lb_cache = {}
         def symbolic_integrator(terminal_node, d):
             assert isinstance(terminal_node, diagram.TerminalNode)
-            return d.pool.terminal(sympy.Sum(terminal_node.expression, (var, "lb", "ub")).doit())
+            return d.pool.terminal(sympy.Sum(terminal_node.expression, (var, "_lb", "_ub")).doit())
 
         integrated = leaf_transform.transform_leaves(symbolic_integrator, self.pool.diagram(node_id))
         self.export(self.pool.diagram(integrated), "integrated")
-        return self.resolve_lb_ub(integrated, var)
+        result_id = self.resolve_lb_ub(integrated, var)
+        self.ub_cache = None
+        self.lb_cache = None
+        return result_id
 
     def resolve_lb_ub(self, node_id, var):
         node = self.pool.get_node(node_id)
@@ -119,7 +129,7 @@ class BoundResolve(object):
                 self.export(self.pool.diagram(non_ub), "nonub_69")
                 resolve_test = self.resolve(var, lower_bound, "", node.test.operator, "ub")
                 print("Resolve test (resolve_ub true branch) {}".format(self.pool.get_node(resolve_test)))
-                res = b.ite(self.pool.diagram(resolve_test),
+                res = self.builder.ite(self.pool.diagram(resolve_test),
                             self.pool.diagram(best_ub) + self.pool.diagram(some_ub),
                             self.pool.diagram(non_ub)
                             )
@@ -131,7 +141,7 @@ class BoundResolve(object):
                 non_ub = self.resolve_ub(node.child_true, var, lower_bound)
                 resolve_test = self.resolve(var, lower_bound, "", (~node.test.operator).to_canonical(), "ub")
                 print("Resolve test (resolve_ub else branch) {}".format(self.pool.get_node(resolve_test)))
-                res = b.ite(self.pool.diagram(resolve_test),
+                res = self.builder.ite(self.pool.diagram(resolve_test),
                             self.pool.diagram(best_ub) + self.pool.diagram(some_ub),
                             self.pool.diagram(non_ub)
                             )
@@ -161,7 +171,7 @@ class BoundResolve(object):
                 non_lb = self.resolve_lb(node.child_false, var, upper_bound)
                 resolve_test = self.resolve(var, upper_bound, "", node.test.operator, "lb")
                 print("Resolve test (resolve_lb true branch) {}".format(self.pool.get_node(resolve_test)))
-                res = b.ite(self.pool.diagram(resolve_test),
+                res = self.builder.ite(self.pool.diagram(resolve_test),
                             self.pool.diagram(best_lb) + self.pool.diagram(some_lb),
                             self.pool.diagram(non_lb)
                             )
@@ -172,7 +182,7 @@ class BoundResolve(object):
                 non_lb = self.resolve_lb(node.child_true, var, upper_bound)
                 resolve_test = self.resolve(var, upper_bound, "", (~node.test.operator).to_canonical(), "lb")
                 print("Resolve test (resolve_lb else branch) {}".format(self.pool.get_node(resolve_test)))
-                res = b.ite(self.pool.diagram(resolve_test),
+                res = self.builder.ite(self.pool.diagram(resolve_test),
                             self.pool.diagram(best_lb) + self.pool.diagram(some_lb),
                             self.pool.diagram(non_lb)
                             )
@@ -207,7 +217,7 @@ class BoundResolve(object):
                 # Tautoogy
                 return true_diagram
         else:
-            return b.ite(self.pool.diagram(self.pool.bool_test(linear_test)), true_diagram, false_diagram)
+            return self.builder.ite(self.pool.diagram(self.pool.bool_test(linear_test)), true_diagram, false_diagram)
 
     def bound_min(self, operator, node_id, var):
         node = self.pool.get_node(node_id)
@@ -218,16 +228,16 @@ class BoundResolve(object):
                 raise RuntimeError("Node not terminal, wtf")
             if node.node_id in lb_cache:
                 res = self.simplify(test.LinearTest(lb_cache[node.node_id], ">", bound),
-                                    b.exp(node.expression), b.exp(sympy.sympify("0")))
+                                    self.builder.exp(node.expression), self.builder.exp(sympy.sympify("0")))
                 print("Created bound (min) {} > {}: {}".format(lb_cache[node.node_id], bound, res.root_node))
                 return res.root_id
             else:
                 return self.pool.zero_id
 
         if node.is_terminal():
-            return leq_leaf(lb_cache, bound, node, self.pool.diagram(node_id))
+            return leq_leaf(self.lb_cache, bound, node, self.pool.diagram(node_id))
         else:
-            return leaf_transform.transform_leaves(lambda x, y: leq_leaf(lb_cache, bound, x, y),
+            return leaf_transform.transform_leaves(lambda x, y: leq_leaf(self.lb_cache, bound, x, y),
                                                    self.pool.diagram(node_id))
 
     def bound_max(self, operator, node_id, var):
@@ -239,26 +249,26 @@ class BoundResolve(object):
                 raise RuntimeError("Node not terminal, wtf")
             if node.node_id in ub_cache:
                 res = self.simplify(test.LinearTest(ub_cache[node.node_id], "<", bound),
-                                    b.exp(node.expression), b.exp(sympy.sympify("0")))
+                                    self.builder.exp(node.expression), self.builder.exp(sympy.sympify("0")))
                 print("Created bound (max) {} < {}: {}".format(ub_cache[node.node_id], bound, res.root_node))
                 return res.root_id
             else:
                 return self.pool.zero_id
 
         if node.is_terminal():
-            return geq_leaf(ub_cache, bound, node, self.pool.diagram(node_id))
+            return geq_leaf(self.ub_cache, bound, node, self.pool.diagram(node_id))
         else:
-            return leaf_transform.transform_leaves(lambda x, y: geq_leaf(ub_cache, bound, x, y),
+            return leaf_transform.transform_leaves(lambda x, y: geq_leaf(self.ub_cache, bound, x, y),
                                                    self.pool.diagram(node_id))
 
     def dag_resolve(self, var, operator, direction, node_id, bound_type, substitute=False, consume=False):
         node = self.pool.get_node(node_id)
         if node.is_terminal():
-            res = self.pool.terminal(node.expression.subs({bound_type: self.operator_to_bound(operator, var)}))
+            res = self.pool.terminal(node.expression.subs({"_" + bound_type: self.operator_to_bound(operator, var)}))
             if bound_type == "ub":
-                ub_cache[res] = self.operator_to_bound(operator, var)
+                self.ub_cache[res] = self.operator_to_bound(operator, var)
             else:
-                lb_cache[res] = self.operator_to_bound(operator, var)
+                self.lb_cache[res] = self.operator_to_bound(operator, var)
             return res
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
@@ -272,17 +282,17 @@ class BoundResolve(object):
             if consume:
                 test_diagram = self.pool.diagram(resolve_true) * self.pool.diagram(resolve_false)
                 if not self.pool.get_node(self.pool.diagram(resolve_true).root_id).is_terminal():
-                    res = b.ite(test_diagram,
+                    res = self.builder.ite(test_diagram,
                                 self.pool.diagram(dr_true),
                                 self.pool.diagram(dr_false)
                                 )
                 else:
-                    res = b.ite(test_diagram,
+                    res = self.builder.ite(test_diagram,
                                 self.pool.diagram(dr_false),
                                 self.pool.diagram(dr_true)
                                 )
             else:
-                res = b.ite(self.pool.diagram(test_node_id),
+                res = self.builder.ite(self.pool.diagram(test_node_id),
                             self.pool.diagram(resolve_true) * self.pool.diagram(dr_true),
                             self.pool.diagram(resolve_false) * self.pool.diagram(dr_false)
                             )
@@ -356,8 +366,6 @@ class BoundResolve(object):
 
 
 if __name__ == "__main__":
-    ub_cache = {}
-    lb_cache = {}
     the_pool = diagram.Pool()
 
 
@@ -371,14 +379,14 @@ if __name__ == "__main__":
 
 
     b = build.Builder(the_pool)
-    b.ints("x", "y", "a", "b", "c", "ub", "lb", "bla", "ub", "lb")
+    b.ints("x", "y", "a", "b", "c", "_ub", "_lb", "bla")
     diagram1 = b.ite(b.test("x", "<=", "a"),
                      b.ite(b.test("x", ">=", "b"),
-                           b.exp("ub - lb"), b.exp(0)),
+                           b.exp("_ub - _lb"), b.exp(0)),
                      b.ite(b.test("x", "<=", "c"),
-                           b.exp("(ub - lb)**2"), b.exp(0))
+                           b.exp("(_ub - _lb)**2"), b.exp(0))
                      )
-    diagram2 = b.ite(b.test("x", ">=", "b"), b.exp("ub - lb"), b.exp(0))
+    diagram2 = b.ite(b.test("x", ">=", "b"), b.exp("_ub - _lb"), b.exp(0))
     bounds = b.test("x", ">=", 0) & b.test("x", "<=", 10)
     # d = b.ite(bounds, b.terminal("x"), b.terminal(0))
 
