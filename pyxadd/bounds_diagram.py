@@ -9,6 +9,7 @@ from pyxadd import reduce
 
 import sympy
 
+
 class BoundResolve(object):
     def __init__(self, pool):
         self.pool = pool
@@ -23,7 +24,6 @@ class BoundResolve(object):
         return self.resolve_lb_ub(integrated, var)
 
     def resolve_lb_ub(self, node_id, var):
-
         node = self.pool.get_node(node_id)
         # leaf
         if node.is_terminal():
@@ -89,9 +89,9 @@ class BoundResolve(object):
             test_node_id = self.pool.bool_test(node.test)
             return self.pool.apply(operation.Summation,
                                    self.pool.apply(operation.Multiplication, test_node_id,
-                                         self.resolve_lb_ub(node.child_true, var)),
+                                                   self.resolve_lb_ub(node.child_true, var)),
                                    self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                         self.resolve_lb_ub(node.child_false, var)))
+                                                   self.resolve_lb_ub(node.child_false, var)))
 
     # view.export(pool.diagram(some_ub), "../../Dropbox/XADD Matrices/dr_1_someub_{}.dot".format(str(node.test.operator)))
     def resolve_ub(self, node_id, var, lower_bound, noprint=True):
@@ -138,10 +138,10 @@ class BoundResolve(object):
         else:
             test_node_id = self.pool.bool_test(node.test)
             return self.pool.apply(operation.Summation,
-                              self.pool.apply(operation.Multiplication, test_node_id,
-                                         self.resolve_ub(node.child_true, var, lower_bound)),
-                              self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                         self.resolve_ub(node.child_false, var, lower_bound)))
+                                   self.pool.apply(operation.Multiplication, test_node_id,
+                                                   self.resolve_ub(node.child_true, var, lower_bound)),
+                                   self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
+                                                   self.resolve_ub(node.child_false, var, lower_bound)))
 
     def resolve_lb(self, node_id, var, upper_bound):
         node = self.pool.get_node(node_id)
@@ -180,10 +180,10 @@ class BoundResolve(object):
         else:
             test_node_id = self.pool.bool_test(node.test)
             return self.pool.apply(operation.Summation,
-                              self.pool.apply(operation.Multiplication, test_node_id,
-                                         self.resolve_lb(node.child_true, var, upper_bound)),
-                              self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                         self.resolve_lb(node.child_false, var, upper_bound)))
+                                   self.pool.apply(operation.Multiplication, test_node_id,
+                                                   self.resolve_lb(node.child_true, var, upper_bound)),
+                                   self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
+                                                   self.resolve_lb(node.child_false, var, upper_bound)))
 
     def to_exp(self, op, var):
         expression = sympy.sympify(op.rhs)
@@ -227,7 +227,8 @@ class BoundResolve(object):
         if node.is_terminal():
             return leq_leaf(lb_cache, bound, node, self.pool.diagram(node_id))
         else:
-            return leaf_transform.transform_leaves(lambda x, y: leq_leaf(lb_cache, bound, x, y), self.pool.diagram(node_id))
+            return leaf_transform.transform_leaves(lambda x, y: leq_leaf(lb_cache, bound, x, y),
+                                                   self.pool.diagram(node_id))
 
     def bound_max(self, operator, node_id, var):
         node = self.pool.get_node(node_id)
@@ -247,7 +248,8 @@ class BoundResolve(object):
         if node.is_terminal():
             return geq_leaf(ub_cache, bound, node, self.pool.diagram(node_id))
         else:
-            return leaf_transform.transform_leaves(lambda x, y: geq_leaf(ub_cache, bound, x, y), self.pool.diagram(node_id))
+            return leaf_transform.transform_leaves(lambda x, y: geq_leaf(ub_cache, bound, x, y),
+                                                   self.pool.diagram(node_id))
 
     def dag_resolve(self, var, operator, direction, node_id, bound_type, substitute=False, consume=False):
         node = self.pool.get_node(node_id)
@@ -295,12 +297,14 @@ class BoundResolve(object):
         else:
             test_node_id = self.pool.bool_test(node.test)
             return self.pool.apply(operation.Summation,
-                              self.pool.apply(operation.Multiplication, test_node_id,
-                                         self.dag_resolve(var, operator, direction, node.child_true, bound_type,
-                                                          consume=consume, substitute=substitute)),
-                              self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                         self.dag_resolve(var, operator, direction, node.child_false, bound_type,
-                                                          consume=consume, substitute=substitute)))
+                                   self.pool.apply(operation.Multiplication, test_node_id,
+                                                   self.dag_resolve(var, operator, direction, node.child_true,
+                                                                    bound_type,
+                                                                    consume=consume, substitute=substitute)),
+                                   self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
+                                                   self.dag_resolve(var, operator, direction, node.child_false,
+                                                                    bound_type,
+                                                                    consume=consume, substitute=substitute)))
 
     def resolve(self, var, operator_lhs, direction, operator_rhs, bound_type):
         # print operator_rhs
