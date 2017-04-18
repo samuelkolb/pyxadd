@@ -65,6 +65,7 @@ class Operator:
     def switch_direction(self):
         """
         Switches the direction of the inequality, e.g. x <= a becomes x >= a
+        :rtype: Operator
         """
         raise NotImplementedError()
 
@@ -122,7 +123,12 @@ class Operator:
         raise NotImplementedError()
 
     def resolve(self, variable, other):
-        # returns self - k*other <= 0
+        """
+        returns self - k*other <= 0
+        :type variable: str
+        :type other: Operator
+        :rtype: Operator
+        """
         operator_self = self.to_canonical()
         operator_other = other.to_canonical()
 
