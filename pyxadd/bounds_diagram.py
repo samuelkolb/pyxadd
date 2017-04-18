@@ -103,11 +103,17 @@ class BoundResolve(object):
                     + self.pool.diagram(best_ub)).root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
-            return self.pool.apply(operation.Summation,
-                                   self.pool.apply(operation.Multiplication, test_node_id,
-                                                   self.resolve_lb_ub(node.child_true, var)),
-                                   self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                                   self.resolve_lb_ub(node.child_false, var)))
+            result_id = self.pool.apply(operation.Summation, self.pool.apply(operation.Multiplication, test_node_id,
+                                                                              self.resolve_lb_ub(node.child_true, var)),
+                                         self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
+                                                         self.resolve_lb_ub(node.child_false, var)))
+            if result_id == 2283:
+                result_node = self.pool.get_node(result_id)
+                print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
+                print(self.pool.get_node(result_node.child_true), self.pool.get_node(result_node.child_false))
+                exit()
+            print("Resolve lb-ub (no resolve) result-id: {}".format(result_id))
+            return result_id
 
     # view.export(pool.diagram(some_ub), "../../Dropbox/XADD Matrices/dr_1_someub_{}.dot".format(str(node.test.operator)))
     def resolve_ub(self, node_id, var, lower_bound, noprint=True):
@@ -150,11 +156,13 @@ class BoundResolve(object):
             return res.root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
-            return self.pool.apply(operation.Summation,
-                                   self.pool.apply(operation.Multiplication, test_node_id,
-                                                   self.resolve_ub(node.child_true, var, lower_bound)),
-                                   self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                                   self.resolve_ub(node.child_false, var, lower_bound)))
+            result_id = self.pool.apply(operation.Summation, self.pool.apply(operation.Multiplication, test_node_id,
+                                                                              self.resolve_ub(node.child_true, var,
+                                                                                              lower_bound)),
+                                         self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
+                                                         self.resolve_ub(node.child_false, var, lower_bound)))
+            print("Resolve ub (no resolve) result-id: {}".format(node_id))
+            return result_id
 
     def resolve_lb(self, node_id, var, upper_bound):
         node = self.pool.get_node(node_id)
@@ -189,11 +197,13 @@ class BoundResolve(object):
             return res.root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
-            return self.pool.apply(operation.Summation,
-                                   self.pool.apply(operation.Multiplication, test_node_id,
-                                                   self.resolve_lb(node.child_true, var, upper_bound)),
-                                   self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                                   self.resolve_lb(node.child_false, var, upper_bound)))
+            result_id = self.pool.apply(operation.Summation, self.pool.apply(operation.Multiplication, test_node_id,
+                                                                              self.resolve_lb(node.child_true, var,
+                                                                                              upper_bound)),
+                                         self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
+                                                         self.resolve_lb(node.child_false, var, upper_bound)))
+            print("Resolve lb (no resolve) result-id: {}".format(node_id))
+            return result_id
 
     def to_exp(self, op, var):
         expression = sympy.sympify(op.rhs)
@@ -280,41 +290,49 @@ class BoundResolve(object):
             dr_false = self.dag_resolve(var, operator, direction, node.child_false,
                                         bound_type, substitute=substitute, consume=consume)
             if consume:
-                test_diagram = self.pool.diagram(resolve_true) * self.pool.diagram(resolve_false)
-                if not self.pool.get_node(self.pool.diagram(resolve_true).root_id).is_terminal():
-                    res = self.builder.ite(test_diagram,
+                if resolve_true is not None:
+                    res = self.builder.ite(self.pool.diagram(resolve_true),
                                 self.pool.diagram(dr_true),
                                 self.pool.diagram(dr_false)
                                 )
                 else:
-                    res = self.builder.ite(test_diagram,
+                    # is terminal
+                    # not matching => terminal(1)
+                    res = self.builder.ite(self.pool.diagram(resolve_false),
                                 self.pool.diagram(dr_false),
                                 self.pool.diagram(dr_true)
                                 )
             else:
+                one_diagram = self.builder.exp(1)
+                resolve_true_diagram = one_diagram if resolve_true is None else self.pool.diagram(resolve_true)
+                resolve_false_diagram = one_diagram if resolve_false is None else self.pool.diagram(resolve_false)
                 res = self.builder.ite(self.pool.diagram(test_node_id),
-                            self.pool.diagram(resolve_true) * self.pool.diagram(dr_true),
-                            self.pool.diagram(resolve_false) * self.pool.diagram(dr_false)
-                            )
+                                       resolve_true_diagram * self.pool.diagram(dr_true),
+                                       resolve_false_diagram * self.pool.diagram(dr_false)
+                                       )
 
             print("Dag resolve {} {} {} {}".format(operator, hash(str(operator)), direction, node))
             print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
             print("resolved {}".format(self.pool.get_node(res.root_id)))
-            print(self.pool.get_node(self.pool.get_node(res.root_id).child_true),
-                  self.pool.get_node(self.pool.get_node(res.root_id).child_false))
+            if not res.root_node.is_terminal() or True:
+                print(self.pool.get_node(self.pool.get_node(res.root_id).child_true),
+                      self.pool.get_node(self.pool.get_node(res.root_id).child_false))
             self.export(res, "dr_debugnid{}x{}".format(node_id, hash(str(operator))))
             return res.root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
-            return self.pool.apply(operation.Summation,
-                                   self.pool.apply(operation.Multiplication, test_node_id,
-                                                   self.dag_resolve(var, operator, direction, node.child_true,
-                                                                    bound_type,
-                                                                    consume=consume, substitute=substitute)),
-                                   self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                                   self.dag_resolve(var, operator, direction, node.child_false,
-                                                                    bound_type,
-                                                                    consume=consume, substitute=substitute)))
+            result_id = self.pool.apply(operation.Summation, self.pool.apply(operation.Multiplication, test_node_id,
+                                                                              self.dag_resolve(var, operator, direction,
+                                                                                               node.child_true,
+                                                                                               bound_type,
+                                                                                               consume=consume,
+                                                                                               substitute=substitute)),
+                                         self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
+                                                         self.dag_resolve(var, operator, direction, node.child_false,
+                                                                          bound_type, consume=consume,
+                                                                          substitute=substitute)))
+            print("Dag resolve (no resolve) result-id: {}".format(node_id))
+            return result_id
 
     def resolve(self, var, operator_lhs, direction, operator_rhs, bound_type):
         # print operator_rhs
@@ -331,7 +349,8 @@ class BoundResolve(object):
         else:
             raise RuntimeError("Variable {} does not appear in expression {}".format(var, operator_lhs))
         if rhs_type != bound_type:
-            return self.pool.terminal(1)
+            return None
+            # return self.pool.terminal(1)
         else:
             if bound_type == "ub":
                 if direction == "geq":

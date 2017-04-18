@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import unittest
 
+from pyxadd import matrix_vector
 from pyxadd.build import Builder
 from pyxadd.diagram import Diagram, Pool
 from pyxadd.matrix_vector import SummationWalker, matrix_multiply
@@ -62,8 +63,8 @@ class TestMatrixVector(unittest.TestCase):
         d = b.ite(bounds, b.ite(two, b.terminal("x"), b.terminal("10")), b.terminal(0))
 
         summed = Diagram(pool, SummationWalker(d, "x").walk())
-        # from pyxadd import bounds_diagram
-        # summed = pool.diagram(bounds_diagram.BoundResolve(pool).integrate(d.root_id, "x"))
+        from pyxadd import bounds_diagram
+        summed = pool.diagram(bounds_diagram.BoundResolve(pool).integrate(d.root_id, "x"))
         d_const = summed.reduce(["y"])
         for y in range(-20, 20):
             s = 0
@@ -94,6 +95,40 @@ class TestMatrixVector(unittest.TestCase):
                 self.assertEqual(2 * x + 6, partial.evaluate({"x": x}))
             else:
                 self.assertEqual(3 * x + 4, partial.evaluate({"x": x}))
+
+    def test_bounds_resolve_1(self):
+        import os
+        from tests import test_evaluate
+        from pyxadd import bounds_diagram
+        from pyxadd.matrix import matrix
+        from pyxadd import variables
+        from tests import export
+
+        exporter = export.Exporter(os.path.join(os.path.dirname(os.path.realpath(__file__)), "visual"), "resolve", True)
+
+
+        diagram_1, vars_1 = test_evaluate.get_diagram_1()
+        exporter.export(diagram_1, "diagram")
+        pool = diagram_1.pool
+        resolve = bounds_diagram.BoundResolve(pool)
+        result_id = diagram_1.root_id
+        control_id = diagram_1.root_id
+        reducer = LinearReduction(pool)
+        for var in vars_1:
+            var_name = str(var[0])
+            result_id = resolve.integrate(result_id, var_name)
+            control_id = matrix_vector.sum_out(pool, control_id, [var_name])
+            result_diagram = pool.diagram(result_id)
+            control_diagram = pool.diagram(control_id)
+            difference_diagram = pool.diagram(reducer.reduce((result_diagram - control_diagram).root_id))
+            exporter.export(result_diagram, "resolve_without_{}".format(var_name))
+            exporter.export(control_diagram, "control_without_{}".format(var_name))
+            exporter.export(difference_diagram, "difference_without_{}".format(var_name))
+            self.assertTrue(var_name not in variables.variables(result_diagram), "{} not eliminated".format(var_name))
+            self.assertTrue(var_name not in variables.variables(control_diagram), "{} not eliminated".format(var_name))
+        self.assertTrue(len(variables.variables(result_diagram)) == 0)
+        self.assertTrue(len(variables.variables(control_diagram)) == 0)
+        self.assertEquals(control_diagram.evaluate({}), result_diagram.evaluate({}))
 
     def test_multiplication(self):
         pool = Pool()
