@@ -105,25 +105,29 @@ class TestMatrixVector(unittest.TestCase):
         from tests import export
 
         exporter = export.Exporter(os.path.join(os.path.dirname(os.path.realpath(__file__)), "visual"), "resolve", True)
-
-
         diagram_1, vars_1 = test_evaluate.get_diagram_1()
         exporter.export(diagram_1, "diagram")
         pool = diagram_1.pool
+        b = Builder(pool)
         resolve = bounds_diagram.BoundResolve(pool)
         result_id = diagram_1.root_id
         control_id = diagram_1.root_id
         reducer = LinearReduction(pool)
+        c = 1000.0
         for var in vars_1:
             var_name = str(var[0])
             result_id = resolve.integrate(result_id, var_name)
             control_id = matrix_vector.sum_out(pool, control_id, [var_name])
             result_diagram = pool.diagram(result_id)
             control_diagram = pool.diagram(control_id)
+            #result_diagram = pool.diagram(reducer.reduce(result_diagram.root_id))
+            #control_diagram = pool.diagram(reducer.reduce(control_diagram.root_id))
             difference_diagram = pool.diagram(reducer.reduce((result_diagram - control_diagram).root_id))
             exporter.export(result_diagram, "resolve_without_{}".format(var_name))
             exporter.export(control_diagram, "control_without_{}".format(var_name))
             exporter.export(difference_diagram, "difference_without_{}".format(var_name))
+            result_id = (b.terminal(1/c) * result_diagram).root_id
+            control_id = (b.terminal(1/c) * control_diagram).root_id
             self.assertTrue(var_name not in variables.variables(result_diagram), "{} not eliminated".format(var_name))
             self.assertTrue(var_name not in variables.variables(control_diagram), "{} not eliminated".format(var_name))
         self.assertTrue(len(variables.variables(result_diagram)) == 0)

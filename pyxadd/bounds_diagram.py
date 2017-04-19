@@ -14,6 +14,8 @@ class BoundResolve(object):
         self.pool = pool
         self.pool.add_var("_lb", "int")
         self.pool.add_var("_ub", "int")
+        self.pool.add_var("_other_ubs", "int")
+        self.pool.add_var("_other_lbs", "int")
         self.debug_path = debug_path
         self.ub_cache = None
         self.lb_cache = None
@@ -23,7 +25,7 @@ class BoundResolve(object):
         if self.debug_path is not None:
             if not name.endswith(".dot"):
                 name += ".dot"
-            exporting.export(diagram_to_export, "{}/{}".format(self.debug_path, name))
+            exporting.export(diagram_to_export, "{}/{}".format(self.debug_path, name), print_node_ids=True)
 
     def integrate(self, node_id, var):
         self.ub_cache = {}
@@ -34,69 +36,73 @@ class BoundResolve(object):
 
         integrated = leaf_transform.transform_leaves(symbolic_integrator, self.pool.diagram(node_id))
         self.export(self.pool.diagram(integrated), "integrated")
+        exporting.export(self.pool.diagram(integrated), "../../Dropbox/XADD Matrices/test.dot", print_node_ids=True)
         result_id = self.resolve_lb_ub(integrated, var)
         self.ub_cache = None
         self.lb_cache = None
         return result_id
 
-    def resolve_lb_ub(self, node_id, var):
+    def resolve_lb_ub(self, node_id, var, seen_ub=False, seen_lb=False):
         node = self.pool.get_node(node_id)
         # leaf
         if node.is_terminal():
-            return node.node_id
+            #TODO: to deal with unbounded constraints, we should either return 0 if we've seen bounds
+            # or f(inf) if we haven't seen bounds
+            return self.pool.zero_id  
         # not leaf
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
             if var_coefficient > 0:
-                # split into cases
-                # case 1: root.test is smaller than all other UBs
-                # -> we make root larger than all other ubs, and we determine the lb
-                best_ub = self.resolve_lb(self.dag_resolve(var, node.test.operator, "leq",
-                                                           node.child_true, "ub"),
-                                          var, node.test.operator)
-                # case 2: root.test is not going to be the ub, we need to make root
-                # -> it needs to be lower than all other ubs; bound_max will append
-                # a comparison of node.test.operator > ub(leaf) before each leaf.
-                self.export(self.pool.diagram(best_ub), "bestubU{}".format(node_id))
-                some_ub = self.bound_max(node.test.operator,
-                                         self.resolve_lb_ub(node.child_true, var), var)
-                self.export(self.pool.diagram(some_ub), "someubU{}".format(node_id))
-                # case 3: test is false, then root.test is the lower bound
-                # -> make root.test larger than all other lbs
-                best_lb = self.resolve_ub(self.dag_resolve(var, (~node.test.operator).to_canonical(), "geq",
-                                                           node.child_false, "lb"),
-                                          var, (~node.test.operator).to_canonical())
-                self.export(self.pool.diagram(best_lb), "bestlbU{}".format(node_id))
-                # case 4:
-                some_lb = self.bound_min((~node.test.operator).to_canonical(),
-                                         self.resolve_lb_ub(node.child_false, var),
-                                         var)
-                self.export(self.pool.diagram(some_lb), "somelbU{}".format(node_id))
-            else:
-                # split into cases
-                # case 1:
-                best_lb = self.resolve_ub(self.dag_resolve(var, node.test.operator, "geq",
-                                                           node.child_true, "lb"),
-                                          var, node.test.operator)
-                self.export(self.pool.diagram(best_lb), "bestlbL{}".format(node_id))
-                # case 2:
-                some_lb = self.bound_min(node.test.operator,
-                                         self.resolve_lb_ub(node.child_true, var),
-                                         var)
-                # view.export(pool.diagram(some_lb), "../../Dropbox/XADD Matrices/debug.dot".format(str(node.test.operator)))
-                # print "Asdf"
-                # exit()
-                # case 3:
-                self.export(self.pool.diagram(some_lb), "somelbL{}".format(node_id))
-                best_ub = self.resolve_lb(self.dag_resolve(var, (~node.test.operator).to_canonical(), "leq",
-                                                           node.child_false, "ub"),
-                                          var, (~node.test.operator).to_canonical())
-                # case 4:
-                self.export(self.pool.diagram(best_ub), "bestubL{}".format(node_id))
-                some_ub = self.bound_max((~node.test.operator).to_canonical(),
-                                         self.resolve_lb_ub(node.child_false, var),
-                                         var)
-                self.export(self.pool.diagram(some_ub), "someubL{}".format(node_id))
+                operator = node.test.operator
+                ub_branch = node.child_true
+                lb_branch = node.child_false
+            else: 
+                operator = (~node.test.operator).to_canonical()
+                ub_branch = node.child_false
+                lb_branch = node.child_true
+            # split into cases
+            # case 1: root.test is smaller than all other UBs
+            # -> we make root larger than all other ubs, and we determine the lb
+            best_ub = self.resolve_lb(self.dag_resolve(var, operator, "leq",
+                                                       ub_branch, "ub", 
+                                                       consume=False,
+                                                       notest=not seen_ub),
+                                      var, operator, seen_lb=seen_lb)
+            # case 2: root.test is not going to be the ub, we need to make root
+            # -> it needs to be lower than all other ubs; bound_max will append
+            # a comparison of node.test.operator > ub(leaf) before each leaf.
+            self.export(self.pool.diagram(best_ub), "bestubU{}".format(node_id))
+            bound_to_resolve = test.LinearTest("_other_ubs", ">=", self.operator_to_bound(operator, var)).operator
+            recursive_bounds = self.resolve_lb_ub(ub_branch, var, seen_ub=True, seen_lb=seen_lb)
+            some_ub = self.dag_resolve("_other_ubs", bound_to_resolve, "geq", recursive_bounds, "lb",
+                                       notest=True, consume=not seen_ub)
+            self.export(self.pool.diagram(some_ub), "someubU{}".format(node_id))
+            # case 3: test is false, then root.test is the lower bound
+            # -> make root.test larger than all other lbs
+            best_lb = self.resolve_ub(self.dag_resolve(var, (~operator).to_canonical(), "geq",
+                                                       lb_branch, "lb",
+                                                       consume=False,
+                                                       notest=not seen_lb),
+                                      var, (~operator).to_canonical(), seen_ub=seen_ub)
+            self.export(self.pool.diagram(best_lb), "bestlbU{}".format(node_id))
+            # case 4:
+
+            #import pdb
+            #pdb.set_trace()
+            bound_to_resolve = test.LinearTest("_other_lbs", "<=", self.operator_to_bound((~operator).to_canonical(), var)).operator
+            recursive_bounds = self.resolve_lb_ub(lb_branch, var, seen_ub=seen_ub, seen_lb=True)
+            #if node_id == 1899:
+            #    import pdb
+            #    pdb.set_trace()
+            some_lb = self.dag_resolve("_other_lbs", bound_to_resolve, "leq", recursive_bounds, "ub",
+                                       notest=True, consume=not seen_lb)
+            self.export(self.pool.diagram(some_lb), "some_lbU{}".format(node_id))
+            #if node_id == 1878:
+            #    self.debug_path = "../../Dropbox/XADD Matrices/"
+            #    testicol = self.resolve_lb_ub(node.child_false, var)
+            #    exporting.export(self.pool.diagram(testicol), "../../Dropbox/XADD Matrices/testicol.dot", print_node_ids=True)
+            #else:
+            #    self.debug_path = None
             return (self.pool.diagram(some_lb)
                     + self.pool.diagram(best_lb)
                     + self.pool.diagram(some_ub)
@@ -104,53 +110,53 @@ class BoundResolve(object):
         else:
             test_node_id = self.pool.bool_test(node.test)
             result_id = self.pool.apply(operation.Summation, self.pool.apply(operation.Multiplication, test_node_id,
-                                                                              self.resolve_lb_ub(node.child_true, var)),
+                                                                              self.resolve_lb_ub(node.child_true, var, seen_ub=seen_ub, seen_lb=seen_lb)),
                                          self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                                         self.resolve_lb_ub(node.child_false, var)))
-            if result_id == 2283:
+                                                         self.resolve_lb_ub(node.child_false, var, seen_ub=seen_ub, seen_lb=seen_lb)))
+            if node_id == 2283:
+                print node_id
                 result_node = self.pool.get_node(result_id)
                 print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
                 print(self.pool.get_node(result_node.child_true), self.pool.get_node(result_node.child_false))
-                exit()
             print("Resolve lb-ub (no resolve) result-id: {}".format(result_id))
             return result_id
 
     # view.export(pool.diagram(some_ub), "../../Dropbox/XADD Matrices/dr_1_someub_{}.dot".format(str(node.test.operator)))
-    def resolve_ub(self, node_id, var, lower_bound, noprint=True):
+    def resolve_ub(self, node_id, var, lower_bound, seen_ub=False):
+        #if node_id == 70 and hash(str(lower_bound)) == 2594685873440222097:
+            #import pdb
+            #pdb.set_trace()
         node = self.pool.get_node(node_id)
         if node.is_terminal():
-            return node_id
+            return self.pool.zero_id
         print("Resolve_ub with {}x{} {}x{}".format(node.test.operator, node_id, lower_bound, hash(str(lower_bound))))
         self.export(self.pool.diagram(node_id), "ub_debugnid{}x{}".format(node_id, hash(str(lower_bound))))
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
             if var_coefficient > 0:
-                best_ub = self.dag_resolve(var, node.test.operator, "leq", node.child_true, "ub", consume=True)
-                self.export(self.pool.diagram(best_ub), "bestub_69")
-                some_ub = self.bound_max(node.test.operator,
-                                         self.resolve_ub(node.child_true, var, lower_bound), var)
-                self.export(self.pool.diagram(self.resolve_ub(node.child_true, var, lower_bound)), "resub_69")
-                self.export(self.pool.diagram(some_ub), "someub_69")
-                non_ub = self.resolve_ub(node.child_false, var, lower_bound)
-                self.export(self.pool.diagram(non_ub), "nonub_69")
-                resolve_test = self.resolve(var, lower_bound, "", node.test.operator, "ub")
-                print("Resolve test (resolve_ub true branch) {}".format(self.pool.get_node(resolve_test)))
-                res = self.builder.ite(self.pool.diagram(resolve_test),
-                            self.pool.diagram(best_ub) + self.pool.diagram(some_ub),
-                            self.pool.diagram(non_ub)
-                            )
-            else:
-                best_ub = self.dag_resolve(var, (~node.test.operator).to_canonical(),
-                                           "leq", node.child_false, "ub", consume=True)
-                some_ub = self.bound_max((~node.test.operator).to_canonical(),
-                                         self.resolve_ub(node.child_false, var, lower_bound), var)
-                non_ub = self.resolve_ub(node.child_true, var, lower_bound)
-                resolve_test = self.resolve(var, lower_bound, "", (~node.test.operator).to_canonical(), "ub")
-                print("Resolve test (resolve_ub else branch) {}".format(self.pool.get_node(resolve_test)))
-                res = self.builder.ite(self.pool.diagram(resolve_test),
-                            self.pool.diagram(best_ub) + self.pool.diagram(some_ub),
-                            self.pool.diagram(non_ub)
-                            )
+                operator = node.test.operator
+                ub_branch = node.child_true
+                lb_branch = node.child_false
+            else: 
+                operator = (~node.test.operator).to_canonical()
+                ub_branch = node.child_false
+                lb_branch = node.child_true
+       
+            best_ub = self.dag_resolve(var, operator, "leq", ub_branch, "ub", consume=True, notest=not seen_ub)
+            
+            bound_to_resolve = test.LinearTest("_other_ubs", ">=", self.operator_to_bound(operator, var)).operator
+            recursive_bounds = self.resolve_ub(ub_branch, var, lower_bound, seen_ub=True)
+            some_ub = self.dag_resolve("_other_ubs", bound_to_resolve, "geq", recursive_bounds, "lb",
+                                       notest=True, consume=not seen_ub)
+
+            non_ub = self.resolve_ub(lb_branch, var, lower_bound, seen_ub=seen_ub)
+           
+            resolve_test = self.resolve(var, lower_bound, "", operator, "ub")
+            print("Resolve test (resolve_ub true branch) {}".format(self.pool.get_node(resolve_test)))
+            res = self.builder.ite(self.pool.diagram(resolve_test),
+                        self.pool.diagram(best_ub) + self.pool.diagram(some_ub),
+                        self.pool.diagram(non_ub)
+                        )
             self.export(self.pool.diagram(res.root_id),
                         "ub_res_debugnid{}x{}".format(node_id, hash(str(lower_bound))))
             return res.root_id
@@ -158,13 +164,13 @@ class BoundResolve(object):
             test_node_id = self.pool.bool_test(node.test)
             result_id = self.pool.apply(operation.Summation, self.pool.apply(operation.Multiplication, test_node_id,
                                                                               self.resolve_ub(node.child_true, var,
-                                                                                              lower_bound)),
+                                                                                              lower_bound, seen_ub=seen_ub)),
                                          self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                                         self.resolve_ub(node.child_false, var, lower_bound)))
-            print("Resolve ub (no resolve) result-id: {}".format(node_id))
+                                                         self.resolve_ub(node.child_false, var, lower_bound, seen_ub=seen_ub)))
+            print("Resolve ub (no resolve) result-id: {}".format(result_id))
             return result_id
 
-    def resolve_lb(self, node_id, var, upper_bound):
+    def resolve_lb(self, node_id, var, upper_bound, seen_lb=False):
         node = self.pool.get_node(node_id)
         if node.is_terminal():
             return self.pool.zero_id
@@ -173,35 +179,34 @@ class BoundResolve(object):
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
             if var_coefficient < 0:
-                best_lb = self.dag_resolve(var, node.test.operator, "geq", node.child_true, "lb", consume=True)
-                some_lb = self.bound_min(node.test.operator,
-                                         self.resolve_lb(node.child_true, var, upper_bound), var)
-                non_lb = self.resolve_lb(node.child_false, var, upper_bound)
-                resolve_test = self.resolve(var, upper_bound, "", node.test.operator, "lb")
-                print("Resolve test (resolve_lb true branch) {}".format(self.pool.get_node(resolve_test)))
-                res = self.builder.ite(self.pool.diagram(resolve_test),
-                            self.pool.diagram(best_lb) + self.pool.diagram(some_lb),
-                            self.pool.diagram(non_lb)
-                            )
-            else:
-                best_lb = self.dag_resolve(var, (~node.test.operator).to_canonical(), "geq", node.child_false, "lb")
-                some_lb = self.bound_min((~node.test.operator).to_canonical(),
-                                         self.resolve_lb(node.child_false, var, upper_bound), var)
-                non_lb = self.resolve_lb(node.child_true, var, upper_bound)
-                resolve_test = self.resolve(var, upper_bound, "", (~node.test.operator).to_canonical(), "lb")
-                print("Resolve test (resolve_lb else branch) {}".format(self.pool.get_node(resolve_test)))
-                res = self.builder.ite(self.pool.diagram(resolve_test),
-                            self.pool.diagram(best_lb) + self.pool.diagram(some_lb),
-                            self.pool.diagram(non_lb)
+                operator = node.test.operator
+                lb_branch = node.child_true
+                ub_branch = node.child_false
+            else: 
+                operator = (~node.test.operator).to_canonical()
+                lb_branch = node.child_false
+                ub_branch = node.child_true
+            best_lb = self.dag_resolve(var, operator, "geq", lb_branch, "lb", consume=True, notest=not seen_lb)
+            
+            bound_to_resolve = test.LinearTest("_other_lbs", "<=", self.operator_to_bound((~operator).to_canonical(), var)).operator
+            recursive_bounds = self.resolve_lb(lb_branch, var, upper_bound, seen_lb=True)
+            some_lb = self.dag_resolve("_other_lbs", bound_to_resolve, "leq", recursive_bounds, "ub",
+                                       notest=True, consume=not seen_lb)
+            non_lb = self.resolve_lb(ub_branch, var, upper_bound, seen_lb=seen_lb)
+            resolve_test = self.resolve(var, upper_bound, "", operator, "lb")
+            print("Resolve test (resolve_lb true branch) {}".format(self.pool.get_node(resolve_test)))
+            res = self.builder.ite(self.pool.diagram(resolve_test),
+                        self.pool.diagram(best_lb) + self.pool.diagram(some_lb),
+                        self.pool.diagram(non_lb)
                             )
             return res.root_id
         else:
             test_node_id = self.pool.bool_test(node.test)
             result_id = self.pool.apply(operation.Summation, self.pool.apply(operation.Multiplication, test_node_id,
                                                                               self.resolve_lb(node.child_true, var,
-                                                                                              upper_bound)),
+                                                                                              upper_bound, seen_lb=seen_lb)),
                                          self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
-                                                         self.resolve_lb(node.child_false, var, upper_bound)))
+                                                         self.resolve_lb(node.child_false, var, upper_bound, seen_lb)))
             print("Resolve lb (no resolve) result-id: {}".format(node_id))
             return result_id
 
@@ -214,6 +219,8 @@ class BoundResolve(object):
 
     def operator_to_bound(self, operator, var):
         # TODO Check for integer division
+        if var not in operator.lhs:
+            return sympy.S(1)
         bound = operator.times(1 / operator.coefficient(var)).weak()
         exp_pos = self.to_exp(bound, var)
         return exp_pos
@@ -229,56 +236,20 @@ class BoundResolve(object):
         else:
             return self.builder.ite(self.pool.diagram(self.pool.bool_test(linear_test)), true_diagram, false_diagram)
 
-    def bound_min(self, operator, node_id, var):
-        node = self.pool.get_node(node_id)
-        bound = self.operator_to_bound(operator, var)
-
-        def leq_leaf(lb_cache, bound, node, diagram):
-            if not node.is_terminal():
-                raise RuntimeError("Node not terminal, wtf")
-            if node.node_id in lb_cache:
-                res = self.simplify(test.LinearTest(lb_cache[node.node_id], ">", bound),
-                                    self.builder.exp(node.expression), self.builder.exp(sympy.sympify("0")))
-                print("Created bound (min) {} > {}: {}".format(lb_cache[node.node_id], bound, res.root_node))
-                return res.root_id
-            else:
-                return self.pool.zero_id
-
-        if node.is_terminal():
-            return leq_leaf(self.lb_cache, bound, node, self.pool.diagram(node_id))
-        else:
-            return leaf_transform.transform_leaves(lambda x, y: leq_leaf(self.lb_cache, bound, x, y),
-                                                   self.pool.diagram(node_id))
-
-    def bound_max(self, operator, node_id, var):
-        node = self.pool.get_node(node_id)
-        bound = self.operator_to_bound(operator, var)
-
-        def geq_leaf(ub_cache, bound, node, diagram):
-            if not node.is_terminal():
-                raise RuntimeError("Node not terminal, wtf")
-            if node.node_id in ub_cache:
-                res = self.simplify(test.LinearTest(ub_cache[node.node_id], "<", bound),
-                                    self.builder.exp(node.expression), self.builder.exp(sympy.sympify("0")))
-                print("Created bound (max) {} < {}: {}".format(ub_cache[node.node_id], bound, res.root_node))
-                return res.root_id
-            else:
-                return self.pool.zero_id
-
-        if node.is_terminal():
-            return geq_leaf(self.ub_cache, bound, node, self.pool.diagram(node_id))
-        else:
-            return leaf_transform.transform_leaves(lambda x, y: geq_leaf(self.ub_cache, bound, x, y),
-                                                   self.pool.diagram(node_id))
-
-    def dag_resolve(self, var, operator, direction, node_id, bound_type, substitute=False, consume=False):
+    def dag_resolve(self, var, operator, direction, node_id, bound_type, notest=False, consume=False):
         node = self.pool.get_node(node_id)
         if node.is_terminal():
-            res = self.pool.terminal(node.expression.subs({"_" + bound_type: self.operator_to_bound(operator, var)}))
-            if bound_type == "ub":
-                self.ub_cache[res] = self.operator_to_bound(operator, var)
-            else:
-                self.lb_cache[res] = self.operator_to_bound(operator, var)
+            print operator, var
+            bounded_exp = node.expression.subs({"_" + bound_type: self.operator_to_bound(operator, var)})
+            bound = self.operator_to_bound(operator, var)
+            bound_test = (test.LinearTest("_other_ubs", ">", bound) if bound_type == "ub"
+                          else test.LinearTest("_other_lbs", "<", bound))
+            if notest:
+                res = self.pool.terminal(node.expression.subs({"_" + bound_type: self.operator_to_bound(operator, var)}))
+            else: 
+                res = self.simplify(bound_test,
+                                    self.builder.exp(bounded_exp),
+                                    self.builder.exp(sympy.sympify("0"))).root_id
             return res
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
@@ -286,9 +257,9 @@ class BoundResolve(object):
             resolve_true = self.resolve(var, operator, direction, node.test.operator, bound_type)
             resolve_false = self.resolve(var, operator, direction, (~node.test.operator).to_canonical(), bound_type)
             dr_true = self.dag_resolve(var, operator, direction, node.child_true,
-                                       bound_type, substitute=substitute, consume=consume)
+                                       bound_type, notest=notest, consume=consume)
             dr_false = self.dag_resolve(var, operator, direction, node.child_false,
-                                        bound_type, substitute=substitute, consume=consume)
+                                        bound_type, notest=notest, consume=consume)
             if consume:
                 if resolve_true is not None:
                     res = self.builder.ite(self.pool.diagram(resolve_true),
@@ -314,7 +285,7 @@ class BoundResolve(object):
             print("Dag resolve {} {} {} {}".format(operator, hash(str(operator)), direction, node))
             print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
             print("resolved {}".format(self.pool.get_node(res.root_id)))
-            if not res.root_node.is_terminal() or True:
+            if not res.root_node.is_terminal():
                 print(self.pool.get_node(self.pool.get_node(res.root_id).child_true),
                       self.pool.get_node(self.pool.get_node(res.root_id).child_false))
             self.export(res, "dr_debugnid{}x{}".format(node_id, hash(str(operator))))
@@ -326,11 +297,11 @@ class BoundResolve(object):
                                                                                                node.child_true,
                                                                                                bound_type,
                                                                                                consume=consume,
-                                                                                               substitute=substitute)),
+                                                                                               notest=notest)),
                                          self.pool.apply(operation.Multiplication, self.pool.invert(test_node_id),
                                                          self.dag_resolve(var, operator, direction, node.child_false,
                                                                           bound_type, consume=consume,
-                                                                          substitute=substitute)))
+                                                                          notest=notest)))
             print("Dag resolve (no resolve) result-id: {}".format(node_id))
             return result_id
 
