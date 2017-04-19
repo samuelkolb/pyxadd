@@ -35,6 +35,9 @@ class SubstitutionWalker(BottomUpWalker):
 
 
 def rename(root, translation, pool=None):
+    """
+    :rtype: int
+    """
     from pyxadd.diagram import Diagram
     if isinstance(root, Diagram):
         pool = root.pool
@@ -45,6 +48,9 @@ def rename(root, translation, pool=None):
 
 
 def substitute(root, translation, pool=None):
+    """
+    :rtype: int
+    """
     from pyxadd.diagram import Diagram
     if isinstance(root, Diagram):
         pool = root.pool
