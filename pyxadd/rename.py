@@ -56,5 +56,5 @@ def substitute(root, translation, pool=None):
         pool = root.pool
         root = root.root_node.node_id
 
-    walker = RenameWalker(pool.diagram(root), translation)
+    walker = SubstitutionWalker(pool.diagram(root), translation)
     return walker.walk()
