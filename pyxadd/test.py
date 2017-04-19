@@ -173,6 +173,14 @@ class Operator:
     def rename(self, translation):
         return self._update({translation[k] if k in translation else k: v for k, v in self._lhs.items()}, self.rhs)
 
+    def substitute_expressions(self, translation):
+        for var in self.lhs.keys():
+            if var not in translation:
+                translation[var] = var
+        translated = [(coefficient, translation[var]) for var, coefficient in self.lhs.items()]
+        expression_string = "+".join("{}*{}".format(coefficient, expression) for coefficient, expression in translated)
+        return self.compile(sympy.sympify(expression_string), self.symbol, self.rhs)
+
 
 class LessThan(Operator):
     def __init__(self, lhs, rhs):
