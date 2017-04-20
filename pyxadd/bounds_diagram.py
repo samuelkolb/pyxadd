@@ -232,7 +232,10 @@ class BoundResolve(object):
             non_lb = self.resolve_lb(ub_branch, var, upper_bound, seen_lb=seen_lb)
             resolve_test_id = self.resolve(var, upper_bound, "", operator, "lb")
             print("Resolve test (resolve_lb true branch) {}".format(self.pool.get_node(resolve_test_id)))
-            # || <- What is about to happen here?
+
+            # Add feasibility test:
+            # - if current <= ub: current is lower bound (=> best lb, some_lb)
+            # - if current > ub: current is upper bound (=> non_ub)
             res = self.builder.ite(self.pool.diagram(resolve_test_id),
                                    self.pool.diagram(best_lb) + self.pool.diagram(some_lb),
                                    self.pool.diagram(non_lb)
