@@ -96,11 +96,10 @@ class TestMatrixVector(unittest.TestCase):
             else:
                 self.assertEqual(3 * x + 4, partial.evaluate({"x": x}))
 
-    def test_bounds_resolve_1(self):
+    def _test_bounds_resolve_1(self):
         import os
         from tests import test_evaluate
         from pyxadd import bounds_diagram
-        from pyxadd.matrix import matrix
         from pyxadd import variables
         from tests import export
 
@@ -133,6 +132,38 @@ class TestMatrixVector(unittest.TestCase):
         self.assertTrue(len(variables.variables(result_diagram)) == 0)
         self.assertTrue(len(variables.variables(control_diagram)) == 0)
         self.assertEquals(control_diagram.evaluate({}), result_diagram.evaluate({}))
+
+    def test_bounds_resolve_some_ub_1(self):
+        import os
+        from tests import export
+        from pyxadd import bounds_diagram
+
+        exporter = export.Exporter(os.path.join(os.path.dirname(os.path.realpath(__file__)), "visual"), "resolve", True)
+        b = Builder()
+        b.ints("x", "b", "c", "d", "y")
+        zero_test = b.test("x", ">=", 0)
+        b_test = b.test("x", "<=", "b")
+        y_test = b.test("y", "<=", 10)
+        c_test = b.test("x", "<=", "c")
+        d_test = b.test("x", "<=", "d")
+        d = zero_test * b_test * b.ite(y_test,
+                                       c_test * b.exp("3"),
+                                       d_test * b.exp("11"))
+        exporter.export(d, "some_ub_diagram")
+        resolve = bounds_diagram.BoundResolve(b.pool, "./visual/resolve/debug/")
+        result_id = resolve.integrate(d.root_id, "x")
+        result_diagram = b.pool.diagram(result_id)
+        exporter.export(result_diagram, "some_ub_result")
+        reducer = LinearReduction(b.pool)
+        reduced_result = b.pool.diagram(reducer.reduce(result_id))
+        exporter.export(reduced_result, "some_ub_result_reduced")
+
+        control_id = matrix_vector.sum_out(b.pool, d.root_id, ["x"])
+        control_diagram = b.pool.diagram(control_id)
+        exporter.export(control_diagram, "some_ub_control")
+
+        reduced_control = b.pool.diagram(reducer.reduce(control_id))
+        exporter.export(reduced_control, "some_ub_control_reduced")
 
     def test_multiplication(self):
         pool = Pool()
