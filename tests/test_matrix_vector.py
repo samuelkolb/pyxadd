@@ -304,6 +304,26 @@ class TestMatrixVector(unittest.TestCase):
         result = (21 - 17 + 1) * val_1 + (16 - 11 + 1) * val_2
         self.compare_results(test_diagram, "c_f1", result)
 
+    def test_bounds_resolve_sub_diagram_simplified(self):
+        b = Builder()
+        b.ints("c_f1")
+        test_2 = b.test("c_f1", "<=", 2)
+        test_16 = b.test("c_f1", "<=", 16)
+        test_21 = b.test("c_f1", "<=", 21)
+
+        val_1 = 2616157026.45477
+        leaf_1 = b.exp(val_1)
+        val_2 = 2615431790.14078
+        leaf_2 = b.exp(val_2)
+
+        # First false test => unbinding lower-bound
+        path_1 = ~test_2 * ~test_16 * test_21 * leaf_1
+        path_2 = ~test_2 * test_16 * test_21 * leaf_2
+
+        test_diagram = path_1 + path_2
+        result = (21 - 17 + 1) * val_1 + (16 - 11 + 1) * val_2
+        self.compare_results(test_diagram, "c_f1", result)
+
     def compare_recursively(self, test_diagram, var):
         root_node = test_diagram.root_node
         print("Comparing node {}".format(root_node))
