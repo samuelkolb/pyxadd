@@ -340,7 +340,6 @@ class TestMatrixVector(unittest.TestCase):
             b.ints(constant)
             b.test("x", "<=", constant)
 
-
         leaf_1 = b.exp(3)
         leaf_2 = b.exp(11)
 
