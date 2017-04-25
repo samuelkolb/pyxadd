@@ -86,9 +86,13 @@ class BoundResolve(object):
                  ub_comp = (ub_expr >= lb_expr)
                  if ub_comp is sympy.S.false:
                      # this branch is infeasible
+                     ub_consistency = self.pool.zero_id
                      some_or_best_ub = self.pool.diagram(self.pool.zero_id)
                      pass_ub = True
-                 ub_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
+                 elif ub_comp is sympy.S.true:
+                     ub_consistency = self.pool.one_id
+                 else:
+                     ub_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
             else:
                  ub_consistency = self.pool.one_id
             if ub is not None and not pass_ub:
@@ -115,9 +119,13 @@ class BoundResolve(object):
                  lb_comp = (ub_expr >= lb_expr)
                  if lb_comp is sympy.S.false:
                      # this branch is infeasible
+                     lb_consistency = self.pool.zero_id
                      some_or_best_lb = self.pool.diagram(self.pool.zero_id)
                      pass_lb = True
-                 lb_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
+                 elif lb_comp is sympy.S.true:
+                     lb_consistency = self.pool.one_id
+                 else:
+                     lb_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
             else:
                  lb_consistency = self.pool.one_id
 	    if lb is not None and not pass_lb:
@@ -200,7 +208,7 @@ class BoundResolve(object):
         operator_rhs = operator_rhs.to_canonical()
         operator_lhs = operator_lhs.to_canonical()
         rhs_coefficient = operator_rhs.coefficient(var)
-        print("Resolving ({}) {} ({}) ({})".format(repr(operator_lhs), direction, repr(operator_rhs), bound_type))
+        #print("Resolving ({}) {} ({}) ({})".format(repr(operator_lhs), direction, repr(operator_rhs), bound_type))
         rhs_type = "na"
         if rhs_coefficient > 0:
             rhs_type = "ub"
@@ -228,7 +236,7 @@ class BoundResolve(object):
                     res = operator_lhs.resolve(var, operator_rhs)
             res = res.to_canonical()
             # print ",".join([str(u) for u in [operator_rhs, operator_lhs, res]])
-            print("Resolving ({}) {} ({}) = ({})".format(repr(operator_lhs), direction, repr(operator_rhs), repr(res)))
+            #print("Resolving ({}) {} ({}) = ({})".format(repr(operator_lhs), direction, repr(operator_rhs), repr(res)))
             if res.is_tautology():
                 if res.rhs < 0:
                     return self.pool.zero_id

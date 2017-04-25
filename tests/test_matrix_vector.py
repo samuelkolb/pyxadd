@@ -12,6 +12,7 @@ from pyxadd.matrix_vector import SummationWalker, matrix_multiply
 from pyxadd.partial import PartialWalker
 from pyxadd.reduce import LinearReduction
 from pyxadd.test import LinearTest
+from pyxadd import timer
 from tests import export
 
 
@@ -105,7 +106,7 @@ class TestMatrixVector(unittest.TestCase):
             else:
                 self.assertEqual(3 * x + 4, partial.evaluate({"x": x}))
 
-    def test_bounds_resolve_1(self):
+    def _test_bounds_resolve_1(self):
         import os
         from tests import test_evaluate
         from pyxadd import bounds_diagram
@@ -124,24 +125,19 @@ class TestMatrixVector(unittest.TestCase):
         c = 1  # 000.0
         for var in vars_1:
             var_name = str(var[0])
-            #if var_name == "c_f1":
-            #    self.compare_results_paths(pool.diagram(result_id), var_name)
-            #with open("root_{}.txt".format(var_name), "w") as stream:
-            #    print(str(result_id), file=stream)
-            #with open("diagram_{}.txt".format(var_name), "w") as stream:
-            #    print(Pool.to_json(b.pool), file=stream)
-            print("var {}, resolve start".format(var_name))
+            if var_name == "c_f1":
+                self.compare_results_paths(pool.diagram(result_id), var_name)
+            with open("root_{}.txt".format(var_name), "w") as stream:
+                print(str(result_id), file=stream)
+            with open("diagram_{}.txt".format(var_name), "w") as stream:
+                print(Pool.to_json(b.pool), file=stream)
             result_id = resolve.integrate(result_id, var_name)
-            print("var {}, resolve done".format(var_name))
-	    control_id = matrix_vector.sum_out(pool, control_id, [var_name])
-            print ("var {}, control done".format(var_name))
+            control_id = matrix_vector.sum_out(pool, control_id, [var_name])
             result_diagram = pool.diagram(result_id)
             control_diagram = pool.diagram(control_id)
-            difference_diagram = result_diagram - control_diagram
-            if var_name != "c_f1":
-                result_diagram = pool.diagram(reducer.reduce(result_diagram.root_id))
-                control_diagram = pool.diagram(reducer.reduce(control_diagram.root_id))
-                difference_diagram = pool.diagram(reducer.reduce(difference_diagram.root_id))
+            # result_diagram = pool.diagram(reducer.reduce(result_diagram.root_id))
+            # control_diagram = pool.diagram(reducer.reduce(control_diagram.root_id))
+            difference_diagram = pool.diagram(reducer.reduce((result_diagram - control_diagram).root_id))
             exporter.export(result_diagram, "resolve_without_{}".format(var_name))
             exporter.export(control_diagram, "control_without_{}".format(var_name))
             exporter.export(difference_diagram, "difference_without_{}".format(var_name))
@@ -155,7 +151,7 @@ class TestMatrixVector(unittest.TestCase):
         print(control_diagram.evaluate({}), result_diagram.evaluate({}))
         self.assertEquals(control_diagram.evaluate({}), result_diagram.evaluate({}))
 
-    def _test_bounds_resolve_final_variable(self):
+    def test_bounds_resolve_final_variable(self):
         import os
         from tests import test_evaluate
         from pyxadd import bounds_diagram
@@ -309,6 +305,59 @@ class TestMatrixVector(unittest.TestCase):
         result = (21 - 17 + 1) * val_1 + (16 - 11 + 1) * val_2
         self.compare_results(test_diagram, "c_f1", result)
 
+    def test_bounds_resolve_sub_diagram_simplified(self):
+        b = Builder()
+        b.ints("c_f1")
+        test_2 = b.test("c_f1", "<=", 2)
+        test_10 = b.test("c_f1", "<=", 10)
+        test_16 = b.test("c_f1", "<=", 16)
+        test_9 = b.test("c_f1", "<=", 9)
+        test_21 = b.test("c_f1", "<=", 21)
+
+        val_1 = 2616157026.45477
+        leaf_1 = b.exp(val_1)
+        val_2 = 2615431790.14078
+        leaf_2 = b.exp(val_2)
+
+        # First false test => unbinding lower-bound
+        path_1 = ~test_2 * ~test_10 * ~test_16 * ~test_9 * test_21 * leaf_1
+        path_2 = ~test_2 * ~test_10 * test_16 * ~test_9 * test_21 * leaf_2
+
+        test_diagram = path_1 + path_2
+        result = (21 - 17 + 1) * val_1 + (16 - 11 + 1) * val_2
+        self.compare_results(test_diagram, "c_f1", result)
+
+    def test_xor(self):
+        b = Builder()
+        b.ints("x", "c")
+
+        bounds = b.test("x", "<=", 100) * b.test("x", ">=", 0)
+        b.test("x", "<=", "c")
+
+        n = 2
+        for i in range(n):
+            constant = "c{}".format(i + 1)
+            b.ints(constant)
+            b.test("x", "<=", constant)
+
+
+        leaf_1 = b.exp(3)
+        leaf_2 = b.exp(11)
+
+        path_1 = leaf_1
+        path_2 = leaf_2
+        for i in range(n):
+            index = n - i
+            constant = "c{}".format(index)
+            current_test = b.test("x", "<=", constant)
+            path_1_old, path_2_old = path_1, path_2
+            path_1 = b.ite(current_test, path_1_old, path_2_old)
+            path_2 = b.ite(current_test, path_2_old, path_1_old)
+
+        result = bounds * b.ite(b.test("x", "<=", "c"), path_1, path_2)
+
+        self.compare_results(result, "x")
+
     def compare_recursively(self, test_diagram, var):
         root_node = test_diagram.root_node
         print("Comparing node {}".format(root_node))
@@ -403,8 +452,13 @@ class TestMatrixVector(unittest.TestCase):
 
         exporter.export(test_diagram, "test_diagram")
 
+        stop_watch = timer.Timer()
+
         resolve = bounds_diagram.BoundResolve(test_diagram.pool, "./visual/resolve/debug/")
+
+        stop_watch.start("Integrating using bound resolve")
         result_id = resolve.integrate(test_diagram.root_id, var)
+        stop_watch.stop()
 
         result_diagram = test_diagram.pool.diagram(result_id)
         exporter.export(result_diagram, "bound_resolve_result")
@@ -412,7 +466,9 @@ class TestMatrixVector(unittest.TestCase):
         reduced_result = test_diagram.pool.diagram(reducer.reduce(result_id))
         exporter.export(reduced_result, "bound_resolve_result_reduced")
 
+        stop_watch.start("Integrating using path enumeration")
         control_id = matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
+        stop_watch.stop()
         control_diagram = test_diagram.pool.diagram(control_id)
         exporter.export(control_diagram, "path_enum_result")
 
