@@ -308,8 +308,13 @@ class TestMatrixVector(unittest.TestCase):
         b = Builder()
         b.ints("c_f1")
         test_2 = b.test("c_f1", "<=", 2)
+        test_5 = b.test("c_f1", "<=", 5)
+        test_10 = b.test("c_f1", "<=", 10)
         test_16 = b.test("c_f1", "<=", 16)
+        test_9 = b.test("c_f1", "<=", 9)
         test_21 = b.test("c_f1", "<=", 21)
+        test_28 = b.test("c_f1", "<=", 28)
+        test_964 = b.test("c_f1", "<=", 964)
 
         val_1 = 2616157026.45477
         leaf_1 = b.exp(val_1)
@@ -317,8 +322,8 @@ class TestMatrixVector(unittest.TestCase):
         leaf_2 = b.exp(val_2)
 
         # First false test => unbinding lower-bound
-        path_1 = ~test_2 * ~test_16 * test_21 * leaf_1
-        path_2 = ~test_2 * test_16 * test_21 * leaf_2
+        path_1 = ~test_2 * ~test_10 * ~test_16 * ~test_9 * test_21 * leaf_1
+        path_2 = ~test_2 * ~test_10 * test_16 * ~test_9 * test_21 * leaf_2
 
         test_diagram = path_1 + path_2
         result = (21 - 17 + 1) * val_1 + (16 - 11 + 1) * val_2
