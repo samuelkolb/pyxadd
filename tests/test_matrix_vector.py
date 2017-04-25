@@ -297,7 +297,6 @@ class TestMatrixVector(unittest.TestCase):
         val_2 = 2615431790.14078
         leaf_2 = b.exp(val_2)
 
-
         path_1 = ~test_2 * ~test_5 * ~test_10 * ~test_16 * ~test_9 * test_21 * test_28 * test_964 * leaf_1
         path_2 = ~test_2 * ~test_5 * ~test_10 * test_16 * ~test_9 * test_21 * test_28 * test_964 * leaf_2
 
