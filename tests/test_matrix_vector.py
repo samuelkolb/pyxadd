@@ -105,7 +105,7 @@ class TestMatrixVector(unittest.TestCase):
             else:
                 self.assertEqual(3 * x + 4, partial.evaluate({"x": x}))
 
-    def _test_bounds_resolve_1(self):
+    def test_bounds_resolve_1(self):
         import os
         from tests import test_evaluate
         from pyxadd import bounds_diagram
@@ -124,19 +124,24 @@ class TestMatrixVector(unittest.TestCase):
         c = 1  # 000.0
         for var in vars_1:
             var_name = str(var[0])
-            if var_name == "c_f1":
-                self.compare_results_paths(pool.diagram(result_id), var_name)
-            with open("root_{}.txt".format(var_name), "w") as stream:
-                print(str(result_id), file=stream)
-            with open("diagram_{}.txt".format(var_name), "w") as stream:
-                print(Pool.to_json(b.pool), file=stream)
+            #if var_name == "c_f1":
+            #    self.compare_results_paths(pool.diagram(result_id), var_name)
+            #with open("root_{}.txt".format(var_name), "w") as stream:
+            #    print(str(result_id), file=stream)
+            #with open("diagram_{}.txt".format(var_name), "w") as stream:
+            #    print(Pool.to_json(b.pool), file=stream)
+            print("var {}, resolve start".format(var_name))
             result_id = resolve.integrate(result_id, var_name)
-            control_id = matrix_vector.sum_out(pool, control_id, [var_name])
+            print("var {}, resolve done".format(var_name))
+	    control_id = matrix_vector.sum_out(pool, control_id, [var_name])
+            print ("var {}, control done".format(var_name))
             result_diagram = pool.diagram(result_id)
             control_diagram = pool.diagram(control_id)
-            # result_diagram = pool.diagram(reducer.reduce(result_diagram.root_id))
-            # control_diagram = pool.diagram(reducer.reduce(control_diagram.root_id))
-            difference_diagram = pool.diagram(reducer.reduce((result_diagram - control_diagram).root_id))
+            difference_diagram = result_diagram - control_diagram
+            if var_name != "c_f1":
+                result_diagram = pool.diagram(reducer.reduce(result_diagram.root_id))
+                control_diagram = pool.diagram(reducer.reduce(control_diagram.root_id))
+                difference_diagram = pool.diagram(reducer.reduce(difference_diagram.root_id))
             exporter.export(result_diagram, "resolve_without_{}".format(var_name))
             exporter.export(control_diagram, "control_without_{}".format(var_name))
             exporter.export(difference_diagram, "difference_without_{}".format(var_name))
@@ -150,7 +155,7 @@ class TestMatrixVector(unittest.TestCase):
         print(control_diagram.evaluate({}), result_diagram.evaluate({}))
         self.assertEquals(control_diagram.evaluate({}), result_diagram.evaluate({}))
 
-    def test_bounds_resolve_final_variable(self):
+    def _test_bounds_resolve_final_variable(self):
         import os
         from tests import test_evaluate
         from pyxadd import bounds_diagram
