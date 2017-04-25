@@ -129,12 +129,12 @@ class BoundResolve(object):
 
             # DEBUG
             if node_id == 2283:
-                print(node_id)
+                pass  # print(node_id)
                 result_node = self.pool.get_node(result_id)
-                print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
-                print(self.pool.get_node(result_node.child_true), self.pool.get_node(result_node.child_false))
+                pass  # print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
+                pass  # print(self.pool.get_node(result_node.child_true), self.pool.get_node(result_node.child_false))
 
-            print("Resolve lb-ub (no resolve) result-id: {}".format(result_id))
+            pass  # print("Resolve lb-ub (no resolve) result-id: {}".format(result_id))
             return result_id
 
     # view.export(pool.diagram(some_ub), "../../Dropbox/XADD Matrices/dr_1_someub_{}.dot".format(str(node.test.operator)))
@@ -146,7 +146,7 @@ class BoundResolve(object):
         node = self.pool.get_node(node_id)
         if node.is_terminal():
             return self.pool.zero_id
-        print("Resolve_ub with {}x{} {}x{}".format(node.test.operator, node_id, lower_bound, hash(str(lower_bound))))
+        pass  # print("Resolve_ub with {}x{} {}x{}".format(node.test.operator, node_id, lower_bound, hash(str(lower_bound))))
         self.export(self.pool.diagram(node_id), "ub_debugnid{}x{}".format(node_id, hash(str(lower_bound))))
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
@@ -178,7 +178,7 @@ class BoundResolve(object):
             non_ub = self.resolve_ub(lb_branch, var, lower_bound, seen_ub=seen_ub)
 
             resolve_test = self.resolve(var, lower_bound, "", operator, "ub")
-            print("Resolve test (resolve_ub true branch) {}".format(self.pool.get_node(resolve_test)))
+            pass  # print("Resolve test (resolve_ub true branch) {}".format(self.pool.get_node(resolve_test)))
             res = self.builder.ite(self.pool.diagram(resolve_test),
                                    self.pool.diagram(best_ub) + self.pool.diagram(some_ub),
                                    self.pool.diagram(non_ub)
@@ -197,7 +197,7 @@ class BoundResolve(object):
             false_branch_diagram = self.pool.diagram(false_branch_id)
 
             result_id = b.ite(self.pool.diagram(test_node_id), true_branch_diagram, false_branch_diagram).root_id
-            print("Resolve ub (no resolve) result-id: {}".format(result_id))
+            pass  # print("Resolve ub (no resolve) result-id: {}".format(result_id))
             return result_id
 
     def resolve_lb(self, node_id, var, upper_bound, seen_lb=False):
@@ -205,7 +205,7 @@ class BoundResolve(object):
         node = self.pool.get_node(node_id)
         if node.is_terminal():
             return self.pool.zero_id
-        print("Resolve_lb with {}x{} {}x{}".format(node.test.operator, node_id, upper_bound, hash(str(upper_bound))))
+        pass  # print("Resolve_lb with {}x{} {}x{}".format(node.test.operator, node_id, upper_bound, hash(str(upper_bound))))
         self.export(self.pool.diagram(node_id), "reslb_debugnid{}x{}".format(node_id, hash(str(upper_bound))))
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
@@ -231,7 +231,7 @@ class BoundResolve(object):
             # For the ub_branch skip the test and recurse on the child
             non_lb = self.resolve_lb(ub_branch, var, upper_bound, seen_lb=seen_lb)
             resolve_test_id = self.resolve(var, upper_bound, "", operator, "lb")
-            print("Resolve test (resolve_lb true branch) {}".format(self.pool.get_node(resolve_test_id)))
+            pass  # print("Resolve test (resolve_lb true branch) {}".format(self.pool.get_node(resolve_test_id)))
 
             # Add feasibility test:
             # - if current <= ub: current is lower bound (=> best lb, some_lb)
@@ -251,7 +251,7 @@ class BoundResolve(object):
             false_branch_diagram = self.pool.diagram(false_branch_id)
 
             result_id = b.ite(self.pool.diagram(test_node_id), true_branch_diagram, false_branch_diagram).root_id
-            print("Resolve lb (no resolve) result-id: {}".format(node_id))
+            pass  # print("Resolve lb (no resolve) result-id: {}".format(node_id))
             return result_id
 
     def to_exp(self, op, var):
@@ -298,7 +298,7 @@ class BoundResolve(object):
 
         if node.is_terminal():
 
-            print operator, var
+            pass  # print operator, var
             bounded_exp = node.expression.subs({"_" + bound_type: self.operator_to_bound(operator, var)})
             bound = self.operator_to_bound(operator, var)
             bound_test = (test.LinearTest("_other_ubs", ">", bound) if bound_type == "ub"
@@ -342,12 +342,11 @@ class BoundResolve(object):
                                        resolve_false_diagram * self.pool.diagram(dr_false)
                                        )
 
-            print("Dag resolve {} {} {} {}".format(operator, hash(str(operator)), direction, node))
-            print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
-            print("resolved {}".format(self.pool.get_node(res.root_id)))
+            pass  # print("Dag resolve {} {} {} {}".format(operator, hash(str(operator)), direction, node))
+            pass  # print(self.pool.get_node(node.child_true), self.pool.get_node(node.child_false))
+            pass  # print("resolved {}".format(self.pool.get_node(res.root_id)))
             if not res.root_node.is_terminal():
-                print(self.pool.get_node(self.pool.get_node(res.root_id).child_true),
-                      self.pool.get_node(self.pool.get_node(res.root_id).child_false))
+                pass  # print(self.pool.get_node(self.pool.get_node(res.root_id).child_true), self.pool.get_node(self.pool.get_node(res.root_id).child_false))
             self.export(res, "dr_debugnid{}x{}".format(node_id, hash(str(operator))))
             return res.root_id
         else:
@@ -362,7 +361,7 @@ class BoundResolve(object):
                                                         self.dag_resolve(var, operator, direction, node.child_false,
                                                                          bound_type, consume=consume,
                                                                          notest=notest)))
-            print("Dag resolve (no resolve) result-id: {}".format(node_id))
+            pass  # print("Dag resolve (no resolve) result-id: {}".format(node_id))
             return result_id
 
     def resolve(self, var, operator_lhs, direction, operator_rhs, bound_type):
@@ -371,7 +370,7 @@ class BoundResolve(object):
         operator_rhs = operator_rhs.to_canonical()
         operator_lhs = operator_lhs.to_canonical()
         rhs_coefficient = operator_rhs.coefficient(var)
-        print("Resolving ({}) {} ({}) ({})".format(repr(operator_lhs), direction, repr(operator_rhs), bound_type))
+        pass  # print("Resolving ({}) {} ({}) ({})".format(repr(operator_lhs), direction, repr(operator_rhs), bound_type))
         rhs_type = "na"
         if rhs_coefficient > 0:
             rhs_type = "ub"
@@ -399,7 +398,7 @@ class BoundResolve(object):
                     res = operator_lhs.resolve(var, operator_rhs)
             res = res.to_canonical()
             # print ",".join([str(u) for u in [operator_rhs, operator_lhs, res]])
-            print("Resolving ({}) {} ({}) = ({})".format(repr(operator_lhs), direction, repr(operator_rhs), repr(res)))
+            pass  # print("Resolving ({}) {} ({}) = ({})".format(repr(operator_lhs), direction, repr(operator_rhs), repr(res)))
             if res.is_tautology():
                 if res.rhs < 0:
                     return self.pool.terminal(0)
@@ -449,18 +448,18 @@ if __name__ == "__main__":
 
     bound_resolve = BoundResolve(the_pool)
     resolved_node_id = bound_resolve.resolve("x", operator_1, "leq", operator_2, "ub")
-    print(the_pool.get_node(resolved_node_id).test.operator)
+    pass  # print(the_pool.get_node(resolved_node_id).test.operator)
 
     resolved_node_id = bound_resolve.resolve("x", operator_1, "geq", operator_2, "ub")
 
-    print(the_pool.get_node(resolved_node_id).test.operator)
+    pass  # print(the_pool.get_node(resolved_node_id).test.operator)
 
     resolved_node_id = bound_resolve.resolve("x", operator_3, "leq", operator_4, "lb")
-    print(the_pool.get_node(resolved_node_id).test.operator)
+    pass  # print(the_pool.get_node(resolved_node_id).test.operator)
 
     resolved_node_id = bound_resolve.resolve("x", operator_3, "geq", operator_4, "lb")
 
-    print(the_pool.get_node(resolved_node_id).test.operator)
+    pass  # print(the_pool.get_node(resolved_node_id).test.operator)
     # dr = dag_resolve("x", operator_1, pool.bool_test(test.LinearTest(operator_2)), "geq", "ub")
     # print("Diagram is {}ordered".format("" if order.is_ordered(pool.diagram(dr)) else "not "))
     # view.export(pool.diagram(dr), "../../Dropbox/XADD Matrices/test.dot")
@@ -481,4 +480,4 @@ if __name__ == "__main__":
         s = 0
         for x in range(-20, 20):
             s += d.evaluate({"x": x, "y": y})
-        print(y, ":", s - d_const.evaluate({"y": y}))
+        pass  # print(y, ":", s - d_const.evaluate({"y": y}))
