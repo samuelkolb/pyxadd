@@ -10,7 +10,7 @@ import sympy
 
 
 class BoundResolve(object):
-    def __init__(self, pool, debug_path=None):
+    def __init__(self, pool, debug_path=None, cache_result=False):
         self.pool = pool
         self.pool.add_var("_lb", "int")
         self.pool.add_var("_ub", "int")
@@ -21,6 +21,8 @@ class BoundResolve(object):
 	self.ub_cache = None
         self.lb_cache = None
         self.builder = build.Builder(pool)
+        self.cache_result = cache_result
+        self.resolve_cache = None
 
     def export(self, diagram_to_export, name):
         if self.debug_path is not None:
@@ -38,12 +40,28 @@ class BoundResolve(object):
 
         integrated = leaf_transform.transform_leaves(symbolic_integrator, self.pool.diagram(node_id))
         self.export(self.pool.diagram(integrated), "integrated")
+        self.resolve_cache = dict()
         result_id = self.resolve_lb_ub(integrated, var)
+        # result_id = order.order(self.pool.diagram(self.resolve_lb_ub(integrated, var))).root_id
+        self.resolve_cache = None
+
         self.ub_cache = None
         self.lb_cache = None
+
         return result_id
 
     def resolve_lb_ub(self, node_id, var, ub=None, lb=None):
+        if self.cache_result:
+            key = (node_id, ub, lb)
+            if key in self.resolve_cache:
+                print("Cache hit for key={}".format(key))
+                return self.resolve_cache[key]
+
+        def cache_result(result):
+            if self.cache_result:
+                self.resolve_cache[key] = result
+            return result
+
         node = self.pool.get_node(node_id)
         b = self.builder
         #print "ub_lb_resolve node: {}, ub: {}, lb: {}, {} : {}".format(node, ub, lb, hash(str(ub)), hash(str(lb))) 
@@ -52,14 +70,14 @@ class BoundResolve(object):
             if ub is None or lb is None: 
                 # TODO: to deal with unbounded constraints, we should either return 0 if we've seen bounds
                 # or f(inf) if we haven't seen bounds
-                return self.pool.zero_id
+                return cache_result(self.pool.zero_id)
             else:
                 ub_sub = self.operator_to_bound(ub, var)
                 lb_sub = self.operator_to_bound(lb, var)
                 bounded_exp = node.expression.subs({"_ub": ub_sub, "_lb": lb_sub})
 		res = self.pool.terminal(bounded_exp)
 		#print "->", self.pool.get_node(res)
-                return res 
+                return cache_result(res)
             # not leaf
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
@@ -144,18 +162,22 @@ class BoundResolve(object):
             elif not pass_lb:
                 best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node)
                 some_or_best_lb = self.pool.diagram(best_lb)
-            res = (some_or_best_lb * self.pool.diagram(lb_consistency)
-                   + some_or_best_ub * self.pool.diagram(ub_consistency))
+
+            lb_branch = some_or_best_lb * self.pool.diagram(lb_consistency)
+            ub_branch = some_or_best_ub * self.pool.diagram(ub_consistency)
+
+            res = (lb_branch + ub_branch)
             #self.export(res, "res{}_{}_{}".format(node_id, hash(str(ub)), hash(str(lb))))
-            return res.root_id
+            return cache_result(res.root_id)
 	else:
             test_node_id = self.pool.bool_test(node.test)
             true_branch_id = self.resolve_lb_ub(node.child_true, var, ub=ub, lb=lb)
             true_branch_diagram = self.pool.diagram(true_branch_id)
             false_branch_id = self.resolve_lb_ub(node.child_false, var, ub=ub, lb=lb)
             false_branch_diagram = self.pool.diagram(false_branch_id)
+
             result_id = b.ite(self.pool.diagram(test_node_id), true_branch_diagram, false_branch_diagram).root_id
-            return result_id                
+            return cache_result(result_id)
     # view.export(pool.diagram(some_ub), "../../Dropbox/XADD Matrices/dr_1_someub_{}.dot".format(str(node.test.operator)))
 
     def to_exp(self, op, var):
@@ -182,16 +204,18 @@ class BoundResolve(object):
     def simplify(self, linear_test, true_diagram, false_diagram):
         """
         Simplifies an if-then-else in case the test is a tautology
-        :param pyxadd.test.LinearTest linear_test: The test
+        :param int linear_test: The test
         :param pyxadd.diagram.Diagram true_diagram: The diagram for the true case
         :param pyxadd.diagram.Diagramfalse_diagram: The diagram for the false case
         :return pyxadd.diagram.Diagram: The if-then-else diagram
         """
-	if linear_test == self.pool.one_id:
-	    return true_diagram
+        if linear_test == self.pool.one_id:
+            return true_diagram
+
         if linear_test == self.pool.zero_id:
             return false_diagram
-	operator = self.pool.get_node(linear_test).test.operator.to_canonical()
+
+        operator = self.pool.get_node(linear_test).test.operator.to_canonical()
         if operator.is_tautology():
             if operator.rhs < 0:
                 # Infeasible
