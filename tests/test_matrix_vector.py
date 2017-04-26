@@ -29,7 +29,6 @@ class TestMatrixVector(unittest.TestCase):
     def construct_diagram():
         pool = Pool()
         pool.int_var("x", "y")
-
         b = Builder(pool)
         bounds = b.test("x", ">=", 0) & b.test("x", "<=", 8) & b.test("y", ">=", 1) & b.test("y", "<=", 10)
         return bounds * b.ite(b.test("x", ">=", "y"), b.terminal("2*x + 3*y"), b.terminal("3*x + 2*y"))
@@ -152,7 +151,7 @@ class TestMatrixVector(unittest.TestCase):
         print(control_diagram.evaluate({}), result_diagram.evaluate({}))
         self.assertEquals(control_diagram.evaluate({}), result_diagram.evaluate({}))
 
-    def test_bounds_resolve_final_variable(self):
+    def _test_bounds_resolve_final_variable(self):
         import os
         from tests import test_evaluate
         from pyxadd import bounds_diagram
@@ -330,16 +329,21 @@ class TestMatrixVector(unittest.TestCase):
 
     def test_xor(self):
         def build_xor(n):
+            import random
+            test_dict = {}
             b = Builder()
             b.ints("x", "c")
 
-            bounds = b.test("x", "<=", 100) * b.test("x", ">=", 0)
+            bounds = b.test("x", "<=", 100) * b.test("x", ">=", 0) * b.test("c", "<=", 100) * b.test("c", ">=", 0)
+	    #for i in range(n):
+            #    constant = "c{}".format(i + 1)
+            #    b.ints(constant)
+            #    bounds = bounds * b.test(constant, "<=", 10) * b.test(constant, ">=", 0)
             b.test("x", "<=", "c")
-
             for i in range(n):
                 constant = "c{}".format(i + 1)
-                b.ints(constant)
-                b.test("x", "<=", constant)
+                #b.ints(constant)
+                test_dict[i+1] = b.test("x", "<=", random.randint(10, 90) )
 
             leaf_1 = b.exp(3)
             leaf_2 = b.exp(11)
@@ -349,16 +353,56 @@ class TestMatrixVector(unittest.TestCase):
             for i in range(n):
                 index = n - i
                 constant = "c{}".format(index)
-                current_test = b.test("x", "<=", constant)
+                current_test = test_dict[index] # b.test("x", "<=", constant)
                 path_1_old, path_2_old = path_1, path_2
                 path_1 = b.ite(current_test, path_1_old, path_2_old)
                 path_2 = b.ite(current_test, path_2_old, path_1_old)
 
             return bounds * b.ite(b.test("x", "<=", "c"), path_1, path_2)
-
-        for size in range(2, 6):
+        import math
+        for size in range(5, 15):
             print("Testing XOR for n={}".format(size))
-            self.compare_results(build_xor(size), "x")
+	    #self.compare_results(build_xor(size)[0], "c1")
+	    #var = "c{}".format(size)
+            #print(var)
+	    #self.compare_results(build_xor(size)[0], var)
+	    #continue
+            #self.compare_results(build_xor(size)[0], "c{}".format(int(math.ceil((size+1)/2))))
+            stop_watch = timer.Timer()
+            xor = build_xor(size)
+            #res = xor_id
+            #vars_1 = list((["c{}".format(i + 1) for i in range(size)]))
+            #vars_1 = reversed(["x", "c"] + list(reversed(["c{}".format(i + 1) for i in range(size-1)]))) 
+            #vars_1 = reversed(vars_1)
+            #for var_name in vars_1:
+	    #	print(var_name)
+	    #    res = self.compare_results(res, var_name)
+
+	    #continue
+	    resolve = bounds_diagram.BoundResolve(xor.pool, cache_result=True)
+            reducer = LinearReduction(xor.pool)
+	    result_id = xor.root_id
+            control_id = xor.root_id
+#
+            vars_1 = list((["c{}".format(i + 1) for i in range(size)]))
+            #vars_1 = reversed(["x", "c"] + list(reversed(["c{}".format(i + 1) for i in range(size-1)]))) 
+            vars_1 = reversed(vars_1)
+            vars_1 = list(vars_1)# + ["c", "x"]
+	    vars_1 = ["c", "x"]
+            stop_watch.start("bound_resolve:")
+            for var_name in vars_1:
+                #print(var_name)
+                result_id = resolve.integrate(result_id, var_name)
+                #result_id = reducer.reduce(result_id)
+            stop_watch.stop()
+            stop_watch.start("path enumerator:")
+            for var_name in vars_1:
+                #print(var_name)
+                #print(var_name)
+                control_id = matrix_vector.sum_out(xor.pool, control_id, [var_name])
+                #control_id = reducer.reduce(control_id)
+            stop_watch.stop()
+            #self.compare_results(build_xor(size), "c{}".format(int(math.ceil(size/2))))
 
     def compare_recursively(self, test_diagram, var):
         root_node = test_diagram.root_node
@@ -457,7 +501,7 @@ class TestMatrixVector(unittest.TestCase):
         exporter.export(test_diagram, "test_diagram")
 
         stop_watch.start("Integrating using path enumeration")
-        control_id = 1  # matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
+        control_id = matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
         stop_watch.stop()
 
         control_diagram = test_diagram.pool.diagram(control_id)
@@ -466,7 +510,7 @@ class TestMatrixVector(unittest.TestCase):
         reduced_control = test_diagram.pool.diagram(reducer.reduce(control_id))
         exporter.export(reduced_control, "path_enum_result_reduced")
 
-        resolve = bounds_diagram.BoundResolve(test_diagram.pool, "./visual/resolve/debug/")
+        resolve = bounds_diagram.BoundResolve(test_diagram.pool, cache_result=True)#, "./visual/resolve/debug/")
 
         stop_watch.start("Integrating using bound resolve")
         result_id = resolve.integrate(test_diagram.root_id, var)
@@ -476,15 +520,15 @@ class TestMatrixVector(unittest.TestCase):
         exporter.export(result_diagram, "bound_resolve_result")
         reduced_result = test_diagram.pool.diagram(reducer.reduce(result_id))
         exporter.export(reduced_result, "bound_resolve_result_reduced")
-
-        # bounds_resolve_result = reduced_result.evaluate({})
-        # path_enumeration_result = reduced_control.evaluate({})
-        # if result is not None:
-        #     self.assertAlmostEquals(result, bounds_resolve_result, delta=10**-3)
-        #     self.assertAlmostEquals(result, path_enumeration_result, delta=10 ** -3)
-        # self.assertAlmostEquals(bounds_resolve_result, path_enumeration_result,
-        #                         msg="Result ({}) and control ({}) do not agree"
-        #                         .format(bounds_resolve_result, path_enumeration_result), delta=10 ** -3)
+	return reduced_result
+        #bounds_resolve_result = reduced_result.evaluate({})
+        #path_enumeration_result = reduced_control.evaluate({})
+        #if result is not None:
+        #    self.assertAlmostEquals(result, bounds_resolve_result, delta=10**-3)
+        #    self.assertAlmostEquals(result, path_enumeration_result, delta=10 ** -3)
+        #self.assertAlmostEquals(bounds_resolve_result, path_enumeration_result,
+        #                        msg="Result ({}) and control ({}) do not agree"
+        #                       .format(bounds_resolve_result, path_enumeration_result), delta=10 ** -3)
 
     def test_multiplication(self):
         pool = Pool()

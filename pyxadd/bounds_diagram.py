@@ -18,6 +18,8 @@ class BoundResolve(object):
         self.pool.add_var("_other_lbs", "int")
         self.debug_path = debug_path
 	#self.debug_path = "../../Dropbox/XADD Matrices/"
+        self.cache_hits = 0
+        self.cache_calls = 0
 	self.ub_cache = None
         self.lb_cache = None
         self.builder = build.Builder(pool)
@@ -50,11 +52,16 @@ class BoundResolve(object):
 
         return result_id
 
-    def resolve_lb_ub(self, node_id, var, ub=None, lb=None):
+    def resolve_lb_ub(self, node_id, var, ub=None, lb=None, rl=0):
+        prefix = rl*"." + "({})({})({})".format(node_id, ub, lb)
+        #print(prefix + " enter")
         if self.cache_result:
             key = (node_id, ub, lb)
+            self.cache_calls += 1
+	    #print key, self.cache_calls, self.cache_hits
             if key in self.resolve_cache:
-                print("Cache hit for key={}".format(key))
+                self.cache_hits += 1
+                #print("Cache hit for key={}".format(key))
                 return self.resolve_cache[key]
 
         def cache_result(result):
@@ -118,18 +125,19 @@ class BoundResolve(object):
 	        if ub_test == self.pool.one_id:
 	             some_ub = self.pool.zero_id
                 else:
-                     some_ub = self.resolve_lb_ub(ub_branch, var, ub=ub, lb=lb)
+                     some_ub = self.resolve_lb_ub(ub_branch, var, ub=ub, lb=lb, rl=rl+1)
                 if ub_test == self.pool.zero_id:
 	            best_ub = self.pool.zero_id
                 else:    
-                    best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb)
+                    best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb, rl=rl+1)
                 some_or_best_ub = self.simplify(ub_test,
                                                 self.pool.diagram(best_ub), 
                                                 self.pool.diagram(some_ub))
                 #ub_test = self.pool.bool_test(test.LinearTest(ub, ">", ub_at_node))
             elif not pass_ub:
-                best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb)
+                best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb, rl=rl+1)
                 some_or_best_ub = self.pool.diagram(best_ub)
+            #print(prefix + " ub done")
 	    pass_lb = False	
             if ub is not None:
                  ub_expr = self.operator_to_bound(ub, var)
@@ -151,21 +159,22 @@ class BoundResolve(object):
 		if lb_test == self.pool.one_id:
 	            some_lb = self.pool.zero_id
                 else:     
-                    some_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb)
+                    some_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb, rl=rl+1)
 		if lb_test == self.pool.zero_id:
                     best_lb = self.pool.zero_id
                 else:
-                    best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node)
+                    best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node, rl=rl+1)
                 some_or_best_lb = self.simplify(lb_test,
 				                self.pool.diagram(best_lb),
                                                 self.pool.diagram(some_lb))
             elif not pass_lb:
-                best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node)
+                best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node, rl=rl+1)
                 some_or_best_lb = self.pool.diagram(best_lb)
 
             lb_branch = some_or_best_lb * self.pool.diagram(lb_consistency)
             ub_branch = some_or_best_ub * self.pool.diagram(ub_consistency)
 
+            #print(prefix + " lb done")
             res = (lb_branch + ub_branch)
             #self.export(res, "res{}_{}_{}".format(node_id, hash(str(ub)), hash(str(lb))))
             return cache_result(res.root_id)
