@@ -17,10 +17,10 @@ class BoundResolve(object):
         self.pool.add_var("_other_ubs", "int")
         self.pool.add_var("_other_lbs", "int")
         self.debug_path = debug_path
-	#self.debug_path = "../../Dropbox/XADD Matrices/"
+        # self.debug_path = "../../Dropbox/XADD Matrices/"
         self.cache_hits = 0
         self.cache_calls = 0
-	self.ub_cache = None
+        self.ub_cache = None
         self.lb_cache = None
         self.builder = build.Builder(pool)
         self.cache_result = cache_result
@@ -53,15 +53,15 @@ class BoundResolve(object):
         return result_id
 
     def resolve_lb_ub(self, node_id, var, ub=None, lb=None, rl=0):
-        prefix = rl*"." + "({})({})({})".format(node_id, ub, lb)
-        #print(prefix + " enter")
+        prefix = rl * "." + "({})({})({})".format(node_id, ub, lb)
+        # print(prefix + " enter")
         if self.cache_result:
             key = (node_id, ub, lb)
             self.cache_calls += 1
-	    #print key, self.cache_calls, self.cache_hits
+            # print key, self.cache_calls, self.cache_hits
             if key in self.resolve_cache:
                 self.cache_hits += 1
-                #print("Cache hit for key={}".format(key))
+                # print("Cache hit for key={}".format(key))
                 return self.resolve_cache[key]
 
         def cache_result(result):
@@ -71,10 +71,10 @@ class BoundResolve(object):
 
         node = self.pool.get_node(node_id)
         b = self.builder
-        #print "ub_lb_resolve node: {}, ub: {}, lb: {}, {} : {}".format(node, ub, lb, hash(str(ub)), hash(str(lb))) 
+        # print "ub_lb_resolve node: {}, ub: {}, lb: {}, {} : {}".format(node, ub, lb, hash(str(ub)), hash(str(lb)))
         # leaf
         if node.is_terminal():
-            if ub is None or lb is None: 
+            if ub is None or lb is None:
                 # TODO: to deal with unbounded constraints, we should either return 0 if we've seen bounds
                 # or f(inf) if we haven't seen bounds
                 return cache_result(self.pool.zero_id)
@@ -82,10 +82,10 @@ class BoundResolve(object):
                 ub_sub = self.operator_to_bound(ub, var)
                 lb_sub = self.operator_to_bound(lb, var)
                 bounded_exp = node.expression.subs({"_ub": ub_sub, "_lb": lb_sub})
-		res = self.pool.terminal(bounded_exp)
-		#print "->", self.pool.get_node(res)
+                res = self.pool.terminal(bounded_exp)
+                # print "->", self.pool.get_node(res)
                 return cache_result(res)
-            # not leaf
+                # not leaf
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
             # Variable occurs in test
@@ -100,85 +100,85 @@ class BoundResolve(object):
                 operator = (~node.test.operator).to_canonical()
                 ub_branch = node.child_false
                 lb_branch = node.child_true
-	    #ub_at_node = self.operator_to_bound(operator, var)
-	    #lb_at_node = self.operator_to_bound((~operator).to_canonical(), var)
-	    ub_at_node = operator
-	    lb_at_node = (~operator).to_canonical()
+            # ub_at_node = self.operator_to_bound(operator, var)
+            # lb_at_node = self.operator_to_bound((~operator).to_canonical(), var)
+            ub_at_node = operator
+            lb_at_node = (~operator).to_canonical()
             pass_ub = False
             if lb is not None:
-                 ub_expr = self.operator_to_bound(ub_at_node, var)
-                 lb_expr = self.operator_to_bound(lb, var)
-                 ub_comp = (ub_expr >= lb_expr)
-                 if ub_comp is sympy.S.false:
-                     # this branch is infeasible
-                     ub_consistency = self.pool.zero_id
-                     some_or_best_ub = self.pool.diagram(self.pool.zero_id)
-                     pass_ub = True
-                 elif ub_comp is sympy.S.true:
-                     ub_consistency = self.pool.one_id
-                 else:
-                     ub_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
+                ub_expr = self.operator_to_bound(ub_at_node, var)
+                lb_expr = self.operator_to_bound(lb, var)
+                ub_comp = (ub_expr >= lb_expr)
+                if ub_comp is sympy.S.false:
+                    # this branch is infeasible
+                    ub_consistency = self.pool.zero_id
+                    some_or_best_ub = self.pool.diagram(self.pool.zero_id)
+                    pass_ub = True
+                elif ub_comp is sympy.S.true:
+                    ub_consistency = self.pool.one_id
+                else:
+                    ub_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
             else:
-                 ub_consistency = self.pool.one_id
+                ub_consistency = self.pool.one_id
             if ub is not None and not pass_ub:
                 ub_test = self.resolve(var, ub, "geq", ub_at_node, "ub")
-	        if ub_test == self.pool.one_id:
-	             some_ub = self.pool.zero_id
+                if ub_test == self.pool.one_id:
+                    some_ub = self.pool.zero_id
                 else:
-                     some_ub = self.resolve_lb_ub(ub_branch, var, ub=ub, lb=lb, rl=rl+1)
+                    some_ub = self.resolve_lb_ub(ub_branch, var, ub=ub, lb=lb, rl=rl + 1)
                 if ub_test == self.pool.zero_id:
-	            best_ub = self.pool.zero_id
-                else:    
-                    best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb, rl=rl+1)
+                    best_ub = self.pool.zero_id
+                else:
+                    best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb, rl=rl + 1)
                 some_or_best_ub = self.simplify(ub_test,
-                                                self.pool.diagram(best_ub), 
+                                                self.pool.diagram(best_ub),
                                                 self.pool.diagram(some_ub))
-                #ub_test = self.pool.bool_test(test.LinearTest(ub, ">", ub_at_node))
+                # ub_test = self.pool.bool_test(test.LinearTest(ub, ">", ub_at_node))
             elif not pass_ub:
-                best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb, rl=rl+1)
+                best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb, rl=rl + 1)
                 some_or_best_ub = self.pool.diagram(best_ub)
-            #print(prefix + " ub done")
-	    pass_lb = False	
+            # print(prefix + " ub done")
+            pass_lb = False
             if ub is not None:
-                 ub_expr = self.operator_to_bound(ub, var)
-                 lb_expr = self.operator_to_bound(lb_at_node, var)
-                 lb_comp = (ub_expr >= lb_expr)
-                 if lb_comp is sympy.S.false:
-                     # this branch is infeasible
-                     lb_consistency = self.pool.zero_id
-                     some_or_best_lb = self.pool.diagram(self.pool.zero_id)
-                     pass_lb = True
-                 elif lb_comp is sympy.S.true:
-                     lb_consistency = self.pool.one_id
-                 else:
-                     lb_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
+                ub_expr = self.operator_to_bound(ub, var)
+                lb_expr = self.operator_to_bound(lb_at_node, var)
+                lb_comp = (ub_expr >= lb_expr)
+                if lb_comp is sympy.S.false:
+                    # this branch is infeasible
+                    lb_consistency = self.pool.zero_id
+                    some_or_best_lb = self.pool.diagram(self.pool.zero_id)
+                    pass_lb = True
+                elif lb_comp is sympy.S.true:
+                    lb_consistency = self.pool.one_id
+                else:
+                    lb_consistency = self.pool.bool_test(test.LinearTest(ub_expr, ">=", lb_expr))
             else:
-                 lb_consistency = self.pool.one_id
-	    if lb is not None and not pass_lb:
+                lb_consistency = self.pool.one_id
+            if lb is not None and not pass_lb:
                 lb_test = self.resolve(var, lb_at_node, "geq", lb, "lb")
-		if lb_test == self.pool.one_id:
-	            some_lb = self.pool.zero_id
-                else:     
-                    some_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb, rl=rl+1)
-		if lb_test == self.pool.zero_id:
+                if lb_test == self.pool.one_id:
+                    some_lb = self.pool.zero_id
+                else:
+                    some_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb, rl=rl + 1)
+                if lb_test == self.pool.zero_id:
                     best_lb = self.pool.zero_id
                 else:
-                    best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node, rl=rl+1)
+                    best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node, rl=rl + 1)
                 some_or_best_lb = self.simplify(lb_test,
-				                self.pool.diagram(best_lb),
+                                                self.pool.diagram(best_lb),
                                                 self.pool.diagram(some_lb))
             elif not pass_lb:
-                best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node, rl=rl+1)
+                best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node, rl=rl + 1)
                 some_or_best_lb = self.pool.diagram(best_lb)
 
             lb_branch = some_or_best_lb * self.pool.diagram(lb_consistency)
             ub_branch = some_or_best_ub * self.pool.diagram(ub_consistency)
 
-            #print(prefix + " lb done")
+            # print(prefix + " lb done")
             res = (lb_branch + ub_branch)
-            #self.export(res, "res{}_{}_{}".format(node_id, hash(str(ub)), hash(str(lb))))
+            # self.export(res, "res{}_{}_{}".format(node_id, hash(str(ub)), hash(str(lb))))
             return cache_result(res.root_id)
-	else:
+        else:
             test_node_id = self.pool.bool_test(node.test)
             true_branch_id = self.resolve_lb_ub(node.child_true, var, ub=ub, lb=lb)
             true_branch_diagram = self.pool.diagram(true_branch_id)
@@ -187,6 +187,7 @@ class BoundResolve(object):
 
             result_id = b.ite(self.pool.diagram(test_node_id), true_branch_diagram, false_branch_diagram).root_id
             return cache_result(result_id)
+
     # view.export(pool.diagram(some_ub), "../../Dropbox/XADD Matrices/dr_1_someub_{}.dot".format(str(node.test.operator)))
 
     def to_exp(self, op, var):
@@ -241,7 +242,7 @@ class BoundResolve(object):
         operator_rhs = operator_rhs.to_canonical()
         operator_lhs = operator_lhs.to_canonical()
         rhs_coefficient = operator_rhs.coefficient(var)
-        #print("Resolving ({}) {} ({}) ({})".format(repr(operator_lhs), direction, repr(operator_rhs), bound_type))
+        # print("Resolving ({}) {} ({}) ({})".format(repr(operator_lhs), direction, repr(operator_rhs), bound_type))
         rhs_type = "na"
         if rhs_coefficient > 0:
             rhs_type = "ub"
@@ -269,7 +270,7 @@ class BoundResolve(object):
                     res = operator_lhs.resolve(var, operator_rhs)
             res = res.to_canonical()
             # print ",".join([str(u) for u in [operator_rhs, operator_lhs, res]])
-            #print("Resolving ({}) {} ({}) = ({})".format(repr(operator_lhs), direction, repr(operator_rhs), repr(res)))
+            # print("Resolving ({}) {} ({}) = ({})".format(repr(operator_lhs), direction, repr(operator_rhs), repr(res)))
             if res.is_tautology():
                 if res.rhs < 0:
                     return self.pool.zero_id
