@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import random
 import unittest
 
 import math
@@ -327,40 +328,58 @@ class TestMatrixVector(unittest.TestCase):
         result = (21 - 17 + 1) * val_1 + (16 - 11 + 1) * val_2
         self.compare_results(test_diagram, "c_f1", result)
 
+    def build_generic_xor(self, n, bounds_producer, test_producer):
+        tests = []
+        b = Builder()
+        b.ints("x", "c")
+
+        bounds = b.test("x", "<=", 100) * b.test("x", ">=", 0) * b.test("c", "<=", 100) * b.test("c", ">=", 0)
+
+        for i in range(n):
+            index = i + 1
+            bounds = bounds_producer(b, index, bounds)
+
+        tests.append(b.test("x", "<=", "c"))
+        for i in range(n):
+            index = i + 1
+            tests.append(test_producer(b, index))
+
+        leaf_1 = b.exp(3)
+        leaf_2 = b.exp(11)
+
+        path_1 = leaf_1
+        path_2 = leaf_2
+
+        for i in range(n):
+            index = n - i
+            current_test = tests[index]
+            path_1_old, path_2_old = path_1, path_2
+            path_1 = b.ite(current_test, path_1_old, path_2_old)
+            path_2 = b.ite(current_test, path_2_old, path_1_old)
+
+        return bounds * b.ite(tests[0], path_1, path_2)
+
+    def build_symbolic_xor(self, n):
+        def bounds_producer(builder, index, bounds):
+            constant = "c{}".format(index)
+            builder.ints(constant)
+            return bounds * builder.test(constant, "<=", 10) * builder.test(constant, ">=", 0)
+
+        def test_producer(builder, index):
+            constant = "c{}".format(index)
+            return builder.test("x", "<=", constant)
+
+        return self.build_generic_xor(n, bounds_producer, test_producer)
+
+    def build_numeric_xor(self, n):
+        def test_producer(builder, index):
+            return builder.test("x", "<=", random.randint(0, 81))
+
+        return self.build_generic_xor(n, lambda b, i, bounds: bounds, test_producer)
+
     def test_xor(self):
-        def build_xor(n):
-            import random
-            test_dict = {}
-            b = Builder()
-            b.ints("x", "c")
-
-            bounds = b.test("x", "<=", 100) * b.test("x", ">=", 0) * b.test("c", "<=", 100) * b.test("c", ">=", 0)
-	    #for i in range(n):
-            #    constant = "c{}".format(i + 1)
-            #    b.ints(constant)
-            #    bounds = bounds * b.test(constant, "<=", 10) * b.test(constant, ">=", 0)
-            b.test("x", "<=", "c")
-            for i in range(n):
-                constant = "c{}".format(i + 1)
-                #b.ints(constant)
-                test_dict[i+1] = b.test("x", "<=", random.randint(10, 90) )
-
-            leaf_1 = b.exp(3)
-            leaf_2 = b.exp(11)
-
-            path_1 = leaf_1
-            path_2 = leaf_2
-            for i in range(n):
-                index = n - i
-                constant = "c{}".format(index)
-                current_test = test_dict[index] # b.test("x", "<=", constant)
-                path_1_old, path_2_old = path_1, path_2
-                path_1 = b.ite(current_test, path_1_old, path_2_old)
-                path_2 = b.ite(current_test, path_2_old, path_1_old)
-
-            return bounds * b.ite(b.test("x", "<=", "c"), path_1, path_2)
         import math
-        for size in range(5, 15):
+        for size in range(5, 50):
             print("Testing XOR for n={}".format(size))
 	    #self.compare_results(build_xor(size)[0], "c1")
 	    #var = "c{}".format(size)
@@ -369,7 +388,7 @@ class TestMatrixVector(unittest.TestCase):
 	    #continue
             #self.compare_results(build_xor(size)[0], "c{}".format(int(math.ceil((size+1)/2))))
             stop_watch = timer.Timer()
-            xor = build_xor(size)
+            xor = self.build_numeric_xor(size)
             #res = xor_id
             #vars_1 = list((["c{}".format(i + 1) for i in range(size)]))
             #vars_1 = reversed(["x", "c"] + list(reversed(["c{}".format(i + 1) for i in range(size-1)]))) 
@@ -399,7 +418,7 @@ class TestMatrixVector(unittest.TestCase):
             for var_name in vars_1:
                 #print(var_name)
                 #print(var_name)
-                control_id = matrix_vector.sum_out(xor.pool, control_id, [var_name])
+                control_id = 0  # matrix_vector.sum_out(xor.pool, control_id, [var_name])
                 #control_id = reducer.reduce(control_id)
             stop_watch.stop()
             #self.compare_results(build_xor(size), "c{}".format(int(math.ceil(size/2))))
