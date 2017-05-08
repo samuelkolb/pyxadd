@@ -29,7 +29,7 @@ class TerminalNode(Node):
     def __init__(self, node_id, expression):
         Node.__init__(self, node_id)
         if type(expression) == str:
-            expression = sympy.sympify(expression).expand()
+            expression = sympy.sympify(expression)
         self._expression = expression
         self._symbols = tuple(expression.free_symbols)
         self._f = None
