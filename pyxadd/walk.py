@@ -389,7 +389,7 @@ def profile_exists(root, pool=None):
 def walk_leaves(f, root, pool=None):
     """
     Calls the given function f on all leaf nodes of the given diagram
-    :param f: The function to run on leaf nodes
+    :param f: The function to run on leaf nodes [(pool, node) -> None]
     :param Diagram|int root: The diagram or root node id
     :param Pool|None pool: If the root is an integer, a pool needs to be provided
     """
