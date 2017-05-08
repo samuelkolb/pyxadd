@@ -178,9 +178,9 @@ class SummationWalker(DownUpWalker):
         lower_bounds = filter_bounds(lower_bounds, lower=True)
         upper_bounds = filter_bounds(upper_bounds, lower=False)
 
-        if len(lower_bounds) > 0 and not (math.isinf(lb_natural) and lb_natural < 0):
+        if len(lower_bounds) == 0 or not (math.isinf(lb_natural) and lb_natural < 0):
             lower_bounds.append(lb_natural)
-        if len(upper_bounds) > 0 and not (math.isinf(ub_natural) and ub_natural > 0):
+        if len(upper_bounds) == 0 or not (math.isinf(ub_natural) and ub_natural > 0):
             upper_bounds.append(ub_natural)
 
         # print("Lower bounds: {}".format(lower_bounds))
