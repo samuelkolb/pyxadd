@@ -15,6 +15,7 @@ from pyxadd.reduce import LinearReduction
 from pyxadd.test import LinearTest
 from pyxadd import timer
 from tests import export
+from pyxadd import reduce as red
 
 
 def build_generic_xor(n, bounds_producer, test_producer):
@@ -399,6 +400,8 @@ class TestMatrixVector(unittest.TestCase):
             print("Testing XOR for n={}".format(size))
             self.compare_results(build_symbolic_xor(size), "x")
 
+        if True == True:
+            return
 	    #self.compare_results(build_xor(size)[0], "c1")
 	    #var = "c{}".format(size)
             #print(var)
@@ -534,29 +537,46 @@ class TestMatrixVector(unittest.TestCase):
         exporter = export.Exporter(os.path.join(os.path.dirname(os.path.realpath(__file__)), "visual"), "resolve", True)
         stop_watch = timer.Timer()
         reducer = LinearReduction(test_diagram.pool)
+        reducer = red.SmtReduce(test_diagram.pool)
 
         exporter.export(test_diagram, "test_diagram")
 
         stop_watch.start("Integrating using path enumeration")
+        sub = stop_watch.sub_time()
+        sub.start("Summing out PE")
         control_id = matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
-        stop_watch.stop()
 
+        sub.start("Exporting PE result")
         control_diagram = test_diagram.pool.diagram(control_id)
         exporter.export(control_diagram, "path_enum_result")
 
+        sub.start("Reducing PE result")
         reduced_control = test_diagram.pool.diagram(reducer.reduce(control_id))
+
+        sub.start("Exporting reduced PE result")
         exporter.export(reduced_control, "path_enum_result_reduced")
+        sub.stop()
+        stop_watch.stop()
 
         resolve = bounds_diagram.BoundResolve(test_diagram.pool, cache_result=True)#, "./visual/resolve/debug/")
 
         stop_watch.start("Integrating using bound resolve")
+        sub = stop_watch.sub_time()
+        sub.start("Summing out BR")
         result_id = resolve.integrate(test_diagram.root_id, var)
-        stop_watch.stop()
 
+        sub.start("Exporting BR result")
         result_diagram = test_diagram.pool.diagram(result_id)
         exporter.export(result_diagram, "bound_resolve_result")
+
+        sub.start("Reducing BR result")
         reduced_result = test_diagram.pool.diagram(reducer.reduce(result_id))
+
+        sub.start("Exporting reduced BR result")
         exporter.export(reduced_result, "bound_resolve_result_reduced")
+        sub.stop()
+        stop_watch.stop()
+
         return reduced_result
         #bounds_resolve_result = reduced_result.evaluate({})
         #path_enumeration_result = reduced_control.evaluate({})
