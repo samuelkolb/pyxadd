@@ -1,8 +1,12 @@
+import re
+
 from pyxadd.diagram import Diagram, Pool
 from pyxadd.test import LinearTest, BinaryTest
 
 
 class Builder(object):
+    inequality_pattern = r"(.*)(<=?|>=?)(.*)"
+
     def __init__(self, pool=None):
         if pool is None:
             pool = Pool()
@@ -34,6 +38,9 @@ class Builder(object):
 
     def test(self, lhs, symbol=None, rhs=None):
         if symbol is None and rhs is None:
+            if isinstance(lhs, str) and re.match(self.inequality_pattern, lhs):
+                match = re.match(self.inequality_pattern, lhs)
+                return self.test(match.group(1), match.group(2), match.group(3))
             if self.pool.get_var_type(lhs) != "bool":
                 raise RuntimeError("'{}' is not a variable of type 'bool'".format(lhs))
             test = BinaryTest(lhs)
