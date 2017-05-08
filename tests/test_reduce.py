@@ -6,7 +6,6 @@ from pyxadd.diagram import Pool, Diagram
 from pyxadd.matrix import matrix
 from pyxadd.reduce import LinearReduction, SmtReduce, SimpleBoundReducer
 from pyxadd.test import LinearTest
-from pyxadd.view import export
 from pyxadd import walk
 from tests.export import Exporter
 
