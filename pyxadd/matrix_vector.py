@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import sympy
+import math
 from collections import defaultdict
 
 from pyxadd.diagram import Diagram, DefaultCache, Pool
@@ -177,8 +178,10 @@ class SummationWalker(DownUpWalker):
         lower_bounds = filter_bounds(lower_bounds, lower=True)
         upper_bounds = filter_bounds(upper_bounds, lower=False)
 
-        lower_bounds.append(lb_natural)
-        upper_bounds.append(ub_natural)
+        if len(lower_bounds) == 0 or not (math.isinf(lb_natural) and lb_natural < 0):
+            lower_bounds.append(lb_natural)
+        if len(upper_bounds) == 0 or not (math.isinf(ub_natural) and ub_natural > 0):
+            upper_bounds.append(ub_natural)
 
         # print("Lower bounds: {}".format(lower_bounds))
         # print("Upper bounds: {}".format(upper_bounds))

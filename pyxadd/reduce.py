@@ -13,6 +13,7 @@ Reducers can exploit the fact that they do not change the relative ordering of t
 Therefore, they can work "in place" and do not need to recontruct the diagram using multiplication and summation.
 """
 
+
 class Reducer(object):
     def __init__(self, pool):
         self._pool = pool
@@ -133,21 +134,21 @@ class SmtReduce(Reducer):
 
             def reduce_branch(true):
                 solver.push()
-                solver.add_assertion(smt_test_true if true else smt.Not(smt_test_false))
+                solver.add_assertion(smt_test_true if true else smt_test_false)
                 child_node = self.pool.get_node(node.child_true if true else node.child_false)
                 reduced_node = self._reduce(child_node, solver)
                 solver.pop()
                 return reduced_node
 
             if not solver.solve([smt_test_true]):
-                # print(smt_test, "not possible, pursue false branch")
+                # Test not feasible, pursue false branch
                 return reduce_branch(False)
 
             if not solver.solve([smt_test_false]):
-                # print("not", smt.Not(smt_test), "not possible, pursue true branch")
+                # Test negation not feasible, pursue true branch
                 return reduce_branch(True)
 
-            # print(smt_test, "possible, pursue both branches")
+            # Test possible in both ways, pursue both branches
             node_id = self.pool.internal(node.test, reduce_branch(True).node_id, reduce_branch(False).node_id)
             return self.pool.get_node(node_id)
         else:

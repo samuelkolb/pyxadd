@@ -173,11 +173,11 @@ class TestWalking(unittest.TestCase):
         walker = DummyTopDownWalker(diagram)
         walker.walk()
         control = {
-            25: [],
-            20: [Path([25])],
-            15: [Path([-25]), Path([25, 20])],
-            8: [Path([25, -20]), Path([25, 20, 15]), Path([-25, 15])],
-            9: [Path([25, 20, -15]), Path([-25, -15])]
+            21: [],
+            17: [Path([21])],
+            13: [Path([-21]), Path([21, 17])],
+            8: [Path([21, -17]), Path([21, 17, 13]), Path([-21, 13])],
+            9: [Path([21, 17, -13]), Path([-21, -13])]
         }
         for node_id, paths in control.items():
             self.assertEquals(set(paths), set(walker.paths[node_id]))
