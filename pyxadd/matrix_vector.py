@@ -32,6 +32,7 @@ class SummationCache(DefaultCache):
 
             v = variables[variable] if variable in variables else sympy.S(variable)
             # TODO add caching again
+            # TODO Deferred, only numeric / one call => directly
             try:
                 # expression = sympy.expand(expression)
                 # print("Value at r=10 is {}".format(expression.subs({"r": 10})))
@@ -92,6 +93,7 @@ class SummationWalker(DownUpWalker):
         self.revisit = defaultdict(lambda: 0)
 
     def visit_internal_down(self, internal_node, parent_message):
+        # TODO Can cache if same ubs / lbs are passed to a node again (e.g. integrating out a non-existent variable)
         operator = internal_node.test.operator.to_canonical()
         # expression = internal_node.test.expression
 
