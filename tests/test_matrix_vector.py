@@ -6,7 +6,7 @@ import unittest
 
 import math
 
-from pyxadd import matrix_vector, bounds_diagram
+from pyxadd import matrix_vector, bounds_diagram, leaf_transform
 from pyxadd.build import Builder
 from pyxadd.diagram import Diagram, Pool
 from pyxadd.matrix_vector import SummationWalker, matrix_multiply
@@ -15,6 +15,58 @@ from pyxadd.reduce import LinearReduction
 from pyxadd.test import LinearTest
 from pyxadd import timer
 from tests import export
+
+
+def build_generic_xor(n, bounds_producer, test_producer):
+    tests = []
+    b = Builder()
+    b.ints("x", "c")
+
+    bounds = b.test("x", "<=", 100) * b.test("x", ">=", 0) * b.test("c", "<=", 100) * b.test("c", ">=", 0)
+
+    for i in range(n):
+        index = i + 1
+        bounds = bounds_producer(b, index, bounds)
+
+    tests.append(b.test("x", "<=", "c"))
+    for i in range(n):
+        index = i + 1
+        tests.append(test_producer(b, index))
+
+    leaf_1 = b.exp(3)
+    leaf_2 = b.exp(11)
+
+    path_1 = leaf_1
+    path_2 = leaf_2
+
+    for i in range(n):
+        index = n - i
+        current_test = tests[index]
+        path_1_old, path_2_old = path_1, path_2
+        path_1 = b.ite(current_test, path_1_old, path_2_old)
+        path_2 = b.ite(current_test, path_2_old, path_1_old)
+
+    return bounds * b.ite(tests[0], path_1, path_2)
+
+
+def build_symbolic_xor(n):
+    def bounds_producer(builder, index, bounds):
+        constant = "c{}".format(index)
+        builder.ints(constant)
+        return bounds * builder.test(constant, "<=", 10) * builder.test(constant, ">=", 0)
+
+    def test_producer(builder, index):
+        constant = "c{}".format(index)
+        return builder.test("x", "<=", constant)
+
+    return build_generic_xor(n, bounds_producer, test_producer)
+
+
+def build_numeric_xor(n):
+    def test_producer(builder, index):
+        return builder.test("x", "<=", random.randint(0, 81))
+
+    return build_generic_xor(n, lambda b, i, bounds: bounds, test_producer)
 
 
 class TestMatrixVector(unittest.TestCase):
@@ -328,59 +380,24 @@ class TestMatrixVector(unittest.TestCase):
         result = (21 - 17 + 1) * val_1 + (16 - 11 + 1) * val_2
         self.compare_results(test_diagram, "c_f1", result)
 
-    def build_generic_xor(self, n, bounds_producer, test_producer):
-        tests = []
-        b = Builder()
-        b.ints("x", "c")
-
-        bounds = b.test("x", "<=", 100) * b.test("x", ">=", 0) * b.test("c", "<=", 100) * b.test("c", ">=", 0)
-
-        for i in range(n):
-            index = i + 1
-            bounds = bounds_producer(b, index, bounds)
-
-        tests.append(b.test("x", "<=", "c"))
-        for i in range(n):
-            index = i + 1
-            tests.append(test_producer(b, index))
-
-        leaf_1 = b.exp(3)
-        leaf_2 = b.exp(11)
-
-        path_1 = leaf_1
-        path_2 = leaf_2
-
-        for i in range(n):
-            index = n - i
-            current_test = tests[index]
-            path_1_old, path_2_old = path_1, path_2
-            path_1 = b.ite(current_test, path_1_old, path_2_old)
-            path_2 = b.ite(current_test, path_2_old, path_1_old)
-
-        return bounds * b.ite(tests[0], path_1, path_2)
-
-    def build_symbolic_xor(self, n):
-        def bounds_producer(builder, index, bounds):
-            constant = "c{}".format(index)
-            builder.ints(constant)
-            return bounds * builder.test(constant, "<=", 10) * builder.test(constant, ">=", 0)
-
-        def test_producer(builder, index):
-            constant = "c{}".format(index)
-            return builder.test("x", "<=", constant)
-
-        return self.build_generic_xor(n, bounds_producer, test_producer)
-
-    def build_numeric_xor(self, n):
-        def test_producer(builder, index):
-            return builder.test("x", "<=", random.randint(0, 81))
-
-        return self.build_generic_xor(n, lambda b, i, bounds: bounds, test_producer)
+    def test_xor_eliminate_all(self):
+        for size in range(6, 7):
+            print("Testing XOR for n={}".format(size))
+            xor = build_symbolic_xor(size)
+            res = xor
+            vars_1 = list((["c{}".format(i + 1) for i in range(size)]))
+            vars_1 = list(reversed(["x", "c"] + vars_1))
+            for var_name in vars_1:
+                print(var_name)
+                res = self.compare_results(res, var_name)
+                # res = res.pool.diagram(leaf_transform.transform_leaves(lambda t, d: d.pool.terminal(random.randint(0, 800)) if t.expression != 0 else 1, res))
 
     def test_xor(self):
         import math
-        for size in range(5, 50):
+        for size in range(2, 3):
             print("Testing XOR for n={}".format(size))
+            self.compare_results(build_symbolic_xor(size), "x")
+
 	    #self.compare_results(build_xor(size)[0], "c1")
 	    #var = "c{}".format(size)
             #print(var)
@@ -388,7 +405,7 @@ class TestMatrixVector(unittest.TestCase):
 	    #continue
             #self.compare_results(build_xor(size)[0], "c{}".format(int(math.ceil((size+1)/2))))
             stop_watch = timer.Timer()
-            xor = self.build_numeric_xor(size)
+            xor = build_symbolic_xor(size)
             #res = xor_id
             #vars_1 = list((["c{}".format(i + 1) for i in range(size)]))
             #vars_1 = reversed(["x", "c"] + list(reversed(["c{}".format(i + 1) for i in range(size-1)]))) 
@@ -539,7 +556,7 @@ class TestMatrixVector(unittest.TestCase):
         exporter.export(result_diagram, "bound_resolve_result")
         reduced_result = test_diagram.pool.diagram(reducer.reduce(result_id))
         exporter.export(reduced_result, "bound_resolve_result_reduced")
-	return reduced_result
+        return reduced_result
         #bounds_resolve_result = reduced_result.evaluate({})
         #path_enumeration_result = reduced_control.evaluate({})
         #if result is not None:
