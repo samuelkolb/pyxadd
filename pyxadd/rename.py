@@ -1,3 +1,4 @@
+from pyxadd import order
 from pyxadd import test
 from pyxadd.walk import BottomUpWalker
 
@@ -34,7 +35,7 @@ class SubstitutionWalker(BottomUpWalker):
         return self.diagram.pool.terminal(terminal_node.expression.subs(self.translation))
 
 
-def rename(root, translation, pool=None):
+def rename(root, translation, reorder=False, pool=None):
     """
     :rtype: int
     """
@@ -44,10 +45,13 @@ def rename(root, translation, pool=None):
         root = root.root_node.node_id
 
     walker = RenameWalker(pool.diagram(root), translation)
-    return walker.walk()
+    result_id = walker.walk()
+    if reorder:
+        result_id = order.order(pool.diagram(result_id)).root_id
+    return result_id
 
 
-def substitute(root, translation, pool=None):
+def substitute(root, translation, reorder=False, pool=None):
     """
     :rtype: int
     """
@@ -57,4 +61,7 @@ def substitute(root, translation, pool=None):
         root = root.root_node.node_id
 
     walker = SubstitutionWalker(pool.diagram(root), translation)
-    return walker.walk()
+    result_id = walker.walk()
+    if reorder:
+        result_id = order.order(pool.diagram(result_id)).root_id
+    return result_id
