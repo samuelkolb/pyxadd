@@ -1,10 +1,11 @@
 import unittest
 
+from pyxadd import timer
 from pyxadd.build import Builder
 from pyxadd.diagram import Pool, Diagram
 from pyxadd.reduce import LinearReduction, SmtReduce
 from pyxadd.test import LinearTest
-from pyxadd.variables import VariableFinder
+from pyxadd.variables import VariableFinder, TopDownVariableFinder
 from pyxadd.view import export
 
 
@@ -27,3 +28,16 @@ class TestVariables(unittest.TestCase):
     def test_find_variables(self):
         for variables, diagram in self.diagrams:
             self.assertEqual(variables, VariableFinder(diagram).walk())
+
+    def test_find_variables_symbolic_xor(self):
+        from tests import test_matrix_vector as mv
+        n = 200
+        diagram = mv.build_symbolic_xor(n)
+        expected_variables = {"x", "c"} | {"c{}".format(i) for i in range(1, n + 1)}
+
+        stop_watch = timer.Timer()
+        stop_watch.start("Bottom up")
+        self.assertEquals(expected_variables, VariableFinder(diagram).walk())
+        stop_watch.start("Top Down")
+        self.assertEquals(expected_variables, TopDownVariableFinder(diagram).walk())
+        stop_watch.stop()
