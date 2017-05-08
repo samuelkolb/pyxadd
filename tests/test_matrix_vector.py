@@ -381,6 +381,7 @@ class TestMatrixVector(unittest.TestCase):
         self.compare_results(test_diagram, "c_f1", result)
 
     def test_xor_eliminate_all(self):
+        # TODO Better performance when expanding
         for size in range(6, 7):
             print("Testing XOR for n={}".format(size))
             xor = build_symbolic_xor(size)
