@@ -53,6 +53,7 @@ class BoundResolve(object):
         return result_id
 
     def resolve_lb_ub(self, node_id, var, ub=None, lb=None, rl=0):
+        method = "fast_smt"
         prefix = rl * "." + "({})({})({})".format(node_id, ub, lb)
         # print(prefix + " enter")
         if self.cache_result:
@@ -130,6 +131,8 @@ class BoundResolve(object):
                     best_ub = self.pool.zero_id
                 else:
                     best_ub = self.resolve_lb_ub(ub_branch, var, ub=ub_at_node, lb=lb, rl=rl + 1)
+                best_ub = self.pool.diagram(best_ub).reduce(method=method).root_id  # RED
+                some_ub = self.pool.diagram(some_ub).reduce(method=method).root_id  # RED
                 some_or_best_ub = self.simplify(ub_test,
                                                 self.pool.diagram(best_ub),
                                                 self.pool.diagram(some_ub))
@@ -164,6 +167,8 @@ class BoundResolve(object):
                     best_lb = self.pool.zero_id
                 else:
                     best_lb = self.resolve_lb_ub(lb_branch, var, ub=ub, lb=lb_at_node, rl=rl + 1)
+                best_lb = self.pool.diagram(best_lb).reduce(method=method).root_id  # RED
+                some_lb = self.pool.diagram(some_lb).reduce(method=method).root_id  # RED
                 some_or_best_lb = self.simplify(lb_test,
                                                 self.pool.diagram(best_lb),
                                                 self.pool.diagram(some_lb))
@@ -175,6 +180,8 @@ class BoundResolve(object):
             ub_branch = some_or_best_ub * self.pool.diagram(ub_consistency)
 
             # print(prefix + " lb done")
+            lb_branch = lb_branch.reduce(method=method)  # RED
+            ub_branch = ub_branch.reduce(method=method)  # RED
             res = (lb_branch + ub_branch)
             # self.export(res, "res{}_{}_{}".format(node_id, hash(str(ub)), hash(str(lb))))
             return cache_result(res.root_id)

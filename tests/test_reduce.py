@@ -7,6 +7,7 @@ from pyxadd.matrix import matrix
 from pyxadd.reduce import LinearReduction, SmtReduce, SimpleBoundReducer
 from pyxadd.test import LinearTest
 from pyxadd import walk
+from tests import test_matrix_vector
 from tests.export import Exporter
 
 
@@ -94,6 +95,46 @@ class TestReduce(unittest.TestCase):
         reduced_smt2 = diagram2.pool.diagram(SmtReduce(diagram2.pool).reduce(diagram2.root_id))
         # self.exporter.export(reduced_smt2, "reduced_smt2")
         self.control(variables, diagram2, reduced_smt2)
+
+    @staticmethod
+    def build_diagram_3():
+        b = build.Builder()
+        b.ints("x", "y")
+        test_x_1 = b.test("x >= 1")
+        test_x_10 = b.test("x <= 10")
+        test_y_1 = b.test("y >= 1")
+        test_y_10 = b.test("y <= 10")
+        test_y = b.test("x <= y")
+        test_y_2 = b.test("x <= y * 2")
+        test_5 = b.test("x <= 5")
+        test_6 = b.test("x <= 6")
+
+        tree = b.ite(test_5, b.ite(test_6, 3, 5), b.ite(test_6, 7, 11))
+        diagram1 = test_x_1 * test_x_10 * test_y_1 * test_y_10 * b.ite(test_y, tree, test_y_2 * tree)
+        return diagram1
+
+    def test_fast_reduce(self):
+        diagram_to_reduce = self.build_diagram_3()
+        variables = [("x", 0, 11), ("y", 0, 11)]
+        self.exporter.export(diagram_to_reduce, "diagram_to_reduce")
+        reduced_fast = diagram_to_reduce.reduce(method="fast_smt")
+        # self.exporter.export(reduced_linear2, "reduced_linear2")
+        self.control(variables, diagram_to_reduce, reduced_fast)
+        self.exporter.export(reduced_fast, "reduced_fast")
+
+    def test_fast_reduce_xor(self):
+        import random
+        random.seed(137)
+        diagram_to_reduce = test_matrix_vector.build_numeric_xor(100)
+        self.exporter.export(diagram_to_reduce, "diagram_to_reduce")
+        variables = [("x", -1, 101), ("c", -1, 101)]
+        from pyxadd import timer
+        stop_watch = timer.Timer()
+        stop_watch.start("Reduce")
+        reduced_fast = diagram_to_reduce.reduce(method="fast_smt")
+        stop_watch.stop()
+        self.control(variables, diagram_to_reduce, reduced_fast)
+        self.exporter.export(reduced_fast, "reduced_fast")
 
     def control(self, variables, original_diagram, reduced_diagram, allow_unreached=False):
         """

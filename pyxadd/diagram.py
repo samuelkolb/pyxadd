@@ -485,12 +485,18 @@ class Diagram:
                 raise RuntimeError("Unexpected node type {} of node {}".format(type(node), node))
 
     def reduce(self, variables=None, method="linear"):
+        if method == "no_reduce":
+            return self
+
         if method == "linear":
             from pyxadd.reduce import LinearReduction
             reducer = LinearReduction(self.pool)
         elif method == "smt":
             from pyxadd.reduce import SmtReduce
             reducer = SmtReduce(self.pool)
+        elif method == "fast_smt":
+            from pyxadd.reduce import SmtReduce
+            reducer = SmtReduce(self.pool, fast=True)
         else:
             raise RuntimeError("Unknown reduction method {} (valid options are 'linear' or 'smt')".format(method))
 

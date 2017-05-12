@@ -396,7 +396,8 @@ class TestMatrixVector(unittest.TestCase):
 
     def test_xor(self):
         import math
-        for size in range(2, 3):
+        random.seed(137)
+        for size in range(2, 6):
             print("Testing XOR for n={}".format(size))
             self.compare_results(build_symbolic_xor(size), "x")
 
@@ -537,26 +538,26 @@ class TestMatrixVector(unittest.TestCase):
         exporter = export.Exporter(os.path.join(os.path.dirname(os.path.realpath(__file__)), "visual"), "resolve", True)
         stop_watch = timer.Timer()
         reducer = LinearReduction(test_diagram.pool)
-        reducer = red.SmtReduce(test_diagram.pool)
+        reducer = red.SmtReduce(test_diagram.pool, fast=False)
 
         exporter.export(test_diagram, "test_diagram")
 
-        stop_watch.start("Integrating using path enumeration")
-        sub = stop_watch.sub_time()
-        sub.start("Summing out PE")
-        control_id = matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
-
-        sub.start("Exporting PE result")
-        control_diagram = test_diagram.pool.diagram(control_id)
-        exporter.export(control_diagram, "path_enum_result")
-
-        sub.start("Reducing PE result")
-        reduced_control = test_diagram.pool.diagram(reducer.reduce(control_id))
-
-        sub.start("Exporting reduced PE result")
-        exporter.export(reduced_control, "path_enum_result_reduced")
-        sub.stop()
-        stop_watch.stop()
+        # stop_watch.start("Integrating using path enumeration")
+        # sub = stop_watch.sub_time()
+        # sub.start("Summing out PE")
+        # control_id = matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
+        #
+        # sub.start("Exporting PE result")
+        # control_diagram = test_diagram.pool.diagram(control_id)
+        # exporter.export(control_diagram, "path_enum_result")
+        #
+        # sub.start("Reducing PE result")
+        # reduced_control = test_diagram.pool.diagram(reducer.reduce(control_id))
+        #
+        # sub.start("Exporting reduced PE result")
+        # exporter.export(reduced_control, "path_enum_result_reduced")
+        # sub.stop()
+        # stop_watch.stop()
 
         resolve = bounds_diagram.BoundResolve(test_diagram.pool, cache_result=True)#, "./visual/resolve/debug/")
 
