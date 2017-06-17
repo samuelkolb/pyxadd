@@ -334,7 +334,7 @@ class SmtReduce(Reducer):
 
         import math
         items = [smt.Times(smt.Int(int(math.floor(v))), to_symbol(k)) for k, v in operator.lhs.items()]
-        lhs = smt.Plus(items)
+        lhs = smt.Plus([smt.Int(0)] + items)
         rhs = smt.Int(int(math.floor(operator.rhs)))
 
         assert operator.symbol == "<="
