@@ -128,6 +128,8 @@ class TestMatrixVector(unittest.TestCase):
         summed = Diagram(pool, SummationWalker(d, "x").walk())
         from pyxadd import bounds_diagram
         summed = pool.diagram(bounds_diagram.BoundResolve(pool).integrate(d.root_id, "x"))
+        self.resolve_export.export(d, "plain_diagram")
+        self.resolve_export.export(summed, "plain_summed")
         d_const = summed.reduce(["y"])
         for y in range(-20, 20):
             s = 0
@@ -399,7 +401,11 @@ class TestMatrixVector(unittest.TestCase):
         random.seed(137)
         for size in range(2, 6):
             print("Testing XOR for n={}".format(size))
-            self.compare_results(build_symbolic_xor(size), "x")
+            diagram = build_symbolic_xor(size)
+            for i in range(size):
+                diagram = self.compare_results(diagram, "c{}".format(size - i))
+                diagram = self.compare_results(diagram, "c")
+                diagram = self.compare_results(diagram, "x")
 
         if True == True:
             return
@@ -444,6 +450,20 @@ class TestMatrixVector(unittest.TestCase):
                 #control_id = reducer.reduce(control_id)
             stop_watch.stop()
             #self.compare_results(build_xor(size), "c{}".format(int(math.ceil(size/2))))
+
+    def test_eliminate_one_var(self):
+        watch = timer.Timer()
+        for size in range(2, 20):
+            print("Testing XOR for n={}".format(size))
+            diagram = build_symbolic_xor(size)
+
+            watch.start("BR n={}")
+            bounds_diagram.BoundResolve(diagram.pool).integrate(diagram.root_id, "c2")
+            watch.stop()
+
+            watch.start("PE n={}")
+            matrix_vector.sum_out(diagram.pool, diagram.root_id, ["c2"])
+            watch.stop()
 
     def compare_recursively(self, test_diagram, var):
         root_node = test_diagram.root_node
@@ -542,22 +562,22 @@ class TestMatrixVector(unittest.TestCase):
 
         exporter.export(test_diagram, "test_diagram")
 
-        # stop_watch.start("Integrating using path enumeration")
-        # sub = stop_watch.sub_time()
-        # sub.start("Summing out PE")
-        # control_id = matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
-        #
-        # sub.start("Exporting PE result")
-        # control_diagram = test_diagram.pool.diagram(control_id)
-        # exporter.export(control_diagram, "path_enum_result")
-        #
-        # sub.start("Reducing PE result")
-        # reduced_control = test_diagram.pool.diagram(reducer.reduce(control_id))
-        #
-        # sub.start("Exporting reduced PE result")
-        # exporter.export(reduced_control, "path_enum_result_reduced")
-        # sub.stop()
-        # stop_watch.stop()
+        stop_watch.start("Integrating using path enumeration")
+        sub = stop_watch.sub_time()
+        sub.start("Summing out PE")
+        control_id = matrix_vector.sum_out(test_diagram.pool, test_diagram.root_id, [var])
+
+        sub.start("Exporting PE result")
+        control_diagram = test_diagram.pool.diagram(control_id)
+        exporter.export(control_diagram, "path_enum_result")
+
+        sub.start("Reducing PE result")
+        reduced_control = test_diagram.pool.diagram(reducer.reduce(control_id))
+
+        sub.start("Exporting reduced PE result")
+        exporter.export(reduced_control, "path_enum_result_reduced")
+        sub.stop()
+        stop_watch.stop()
 
         resolve = bounds_diagram.BoundResolve(test_diagram.pool, cache_result=True)#, "./visual/resolve/debug/")
 
