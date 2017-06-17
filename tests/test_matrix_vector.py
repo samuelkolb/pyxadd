@@ -404,8 +404,8 @@ class TestMatrixVector(unittest.TestCase):
             diagram = build_symbolic_xor(size)
             for i in range(size):
                 diagram = self.compare_results(diagram, "c{}".format(size - i))
-                diagram = self.compare_results(diagram, "c")
-                diagram = self.compare_results(diagram, "x")
+            diagram = self.compare_results(diagram, "c")
+            diagram = self.compare_results(diagram, "x")
 
         if True == True:
             return
