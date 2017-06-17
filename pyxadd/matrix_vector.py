@@ -84,11 +84,12 @@ def filter_bounds(bounds, lower):
 
 class SummationWalker(DownUpWalker):
     def __init__(self, diagram, variable):
-        DownUpWalker.__init__(self, diagram)
+        DownUpWalker.__init__(self, diagram, cache_messages=True)
         self.variable = str(variable)
         # The node cache keeps track of the updated bounds per test
         self.node_cache = dict()
         self.sum_cache = dict()
+        self.recursion_cache = dict()
         SummationCache.initialize(diagram.pool)
         self.conflicts = set()
         self.revisit = defaultdict(lambda: 0)
@@ -102,7 +103,7 @@ class SummationWalker(DownUpWalker):
         if parent_message is not None:
             lb, ub, bounds = parent_message
         else:
-            lb, ub, bounds = -float("inf"), float("inf"), []
+            lb, ub, bounds = -float("inf"), float("inf"), ()
 
         if operator.is_singular() and self.variable in operator.variables:
             # Test on exactly the given variable: update bounds for the two children (node will be collapsed)
@@ -127,7 +128,7 @@ class SummationWalker(DownUpWalker):
 
             true_bound = (rewritten_positive.symbol, exp_pos)
             false_bound = (rewritten_negative.symbol, exp_neg)
-            return (lb, ub, bounds + [true_bound]), (lb, ub, bounds + [false_bound])
+            return (lb, ub, bounds + (true_bound,)), (lb, ub, bounds + (false_bound,))
 
         else:
             # Test that does not include the given variable (node test will be maintained)
