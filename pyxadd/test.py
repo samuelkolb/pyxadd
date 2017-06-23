@@ -104,8 +104,7 @@ class Operator:
         new_coefficients = {var: coefficient for var, coefficient in new_coefficients.items() if coefficient != 0}
         new_constant = self.rhs + other.rhs
         return self._update(new_coefficients, new_constant)
-           
-    
+
     def is_singular(self):
         return len(self.lhs) == 1
 
