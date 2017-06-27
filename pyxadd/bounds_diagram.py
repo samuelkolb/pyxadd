@@ -10,7 +10,7 @@ import sympy
 
 
 class BoundResolve(object):
-    def __init__(self, pool, debug_path=None, cache_result=False):
+    def __init__(self, pool, debug_path=None, cache_result=True):
         self.pool = pool
         self.pool.add_var("_lb", "int")
         self.pool.add_var("_ub", "int")
@@ -53,7 +53,7 @@ class BoundResolve(object):
         return result_id
 
     def resolve_lb_ub(self, node_id, var, ub=None, lb=None, rl=0):
-        method = "fast_smt"
+        method = "no_reduce"  # "fast_smt"
         prefix = rl * "." + "({})({})({})".format(node_id, ub, lb)
         # print(prefix + " enter")
         if self.cache_result:
