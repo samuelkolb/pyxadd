@@ -53,6 +53,10 @@ class Operator:
         raise NotImplementedError()
 
     def __invert__(self):
+        """
+        Return the negation of this operator. E.g. ~(x <= 0) = x > 0
+        :return Operator: The negation
+        """
         raise NotImplementedError()
 
     def flip(self):
@@ -85,6 +89,10 @@ class Operator:
         raise NotImplementedError()
 
     def to_canonical(self):
+        """
+        Returns a canonical form of the operator, i.e. rewrites it as a weak inequality (<=)
+        :rtype: Operator
+        """
         raise NotImplementedError()
 
     def invert_lhs(self):
@@ -141,7 +149,39 @@ class Operator:
         result = self_scaled.operator_add(other_scaled)
         assert variable not in result.variables
         return result
-   
+
+    def contradicts(self, other):
+        """
+        Checks if this operator and the given operator contradict each other
+        :param Operator other:
+        :return bool: True if the operators contradict each other, False otherwise
+        """
+        op_self = self.to_canonical()
+        op_other = other.to_canonical()
+
+        if len(op_self.lhs) != len(op_other.lhs):
+            return False
+
+        ratio = None
+        delta = 0
+        for v in op_self.lhs:
+            # Check for free variables that only occur in one operator
+            if v not in op_other.lhs:
+                return False
+
+            # Check for a negative ratio
+            v_ratio = op_self.coefficient(v) / float(op_other.coefficient(v))
+            if v_ratio > 0:
+                return False
+
+            # Check that ratio is the same for all vars
+            if ratio is None:
+                ratio = v_ratio
+            elif abs(ratio - v_ratio) > delta:
+                return False
+
+        return 0 <= op_self.rhs + -ratio * op_other.rhs
+
     def __repr__(self):
         return "{} {} {}".format(" + ".join("{}*{}".format(v, k) for k, v in self.lhs.items()), self.symbol, self.rhs)
 
