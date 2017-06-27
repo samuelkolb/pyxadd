@@ -192,12 +192,18 @@ class Pool:
             raise RuntimeError("No node in pool with id {}.".format(node_id))
 
     def int_var(self, *args):
-        for name in args:
-            self.vars[str(name)] = "int"
+        self._set_var_type("int", args)
 
     def bool_var(self, *args):
-        for name in args:
-            self.vars[str(name)] = "bool"
+        self._set_var_type("bool", args)
+
+    def _set_var_type(self, v_type, variable_names):
+        for name in variable_names:
+            name = str(name)
+            if name in self.vars and self.vars[name] != v_type:
+                raise RuntimeError("Cannot change the type of variable {} from {} to {}"
+                                   .format(name, self.vars[name], v_type))
+            self.vars[name] = v_type
 
     def add_var(self, name, v_type):
         mapping = {
