@@ -228,7 +228,9 @@ class Operator:
         expression = lhs - rhs
         lhs = {str(var): float(expression.coeff(var, 1)) for var in expression.free_symbols}
         lhs = {var: coefficient for var, coefficient in lhs.items() if coefficient != 0}
-        rhs = float(-sympy.lambdify(expression.free_symbols, expression)(*([0] * len(expression.free_symbols))))
+        constant = -sympy.lambdify(expression.free_symbols, expression)(*([0] * len(expression.free_symbols)))
+        # print(constant)
+        rhs = float(constant)
         operator = Operator.constructors[symbol](lhs, rhs)
         return operator
 
@@ -401,6 +403,13 @@ class Test(object):
     def to_canonical(self, child_true, child_false):
         raise NotImplementedError()
 
+    def get_valid_branches(self):
+        """
+        Returns the valid branches (True, False or both)
+        :rtype: List[bool]
+        """
+        raise NotImplementedError()
+
     def __repr__(self):
         raise NotImplementedError()
 
@@ -489,6 +498,12 @@ class LinearTest(Test):
             self._operator = self.operator.to_canonical()
             return self, child_true, child_false
 
+    def get_valid_branches(self):
+        if len(self.operator.variables) > 0:
+            return [True, False]
+        # Operator has no variables, is of the form 0 <= k
+        return [0 <= self.operator.rhs]
+
     def __repr__(self):
         return repr(self.operator)
 
@@ -521,6 +536,11 @@ class BinaryTest(Test):
 
     def to_canonical(self, child_true, child_false):
         return self, child_true, child_false
+
+    def get_valid_branches(self):
+        if self.var is True or self.var is False:
+            return [self.var]
+        return [True, False]
 
     def __repr__(self):
         return str(self.var)
