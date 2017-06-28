@@ -7,11 +7,22 @@ class Timer(object):
 
     clean = True
 
-    def __init__(self, prefix="", precision=2):
+    def __init__(self, prefix="", precision=2, verbose=True):
         self.start_time = None
         self.sub_timer = None
         self.prefix = prefix
         self.precision = precision
+        self.verbose = verbose
+
+    def _write(self, string, *args, **kwargs):
+        """
+        If the verbose setting is true: print(string.format(args), kwargs)
+        :param str string:
+        :param args:
+        :param kwargs:
+        """
+        if self.verbose:
+            print(string.format(*args), **kwargs)
 
     def start(self, title):
         if self.start_time is not None:
@@ -19,8 +30,8 @@ class Timer(object):
 
         self.start_time = time.time()
         if not Timer.clean:
-            print()
-        print("{}{}...".format(self.prefix, title), end="")
+            self._write("")
+        self._write("{}{}...", self.prefix, title, end="")
         Timer.clean = False
 
     def stop(self):
@@ -31,8 +42,8 @@ class Timer(object):
                 self.sub_timer.stop()
                 self.sub_timer = None
             if Timer.clean:
-                print(self.prefix, end="")
-            print((" done (took {:." + str(self.precision) + "f}s)").format(time_taken))
+                self._write(self.prefix, end="")
+            self._write((" done (took {:." + str(self.precision) + "f}s)"), time_taken)
             Timer.clean = True
             return time_taken
         return None
@@ -44,14 +55,14 @@ class Timer(object):
         if self.start_time is None:
             return None
         if self.sub_timer is None:
-            self.sub_timer = Timer(prefix=self.prefix + "\t")
+            self.sub_timer = Timer(prefix=self.prefix + "\t", precision=self.precision, verbose=self.verbose)
         return self.sub_timer
 
     def log(self, message):
         if self.start_time is None:
-            print("{}{}".format(self.prefix, message))
+            self._write("{}{}", self.prefix, message)
         else:
             if not Timer.clean:
-                print()
+                self._write("")
                 Timer.clean = True
-            print("{}\t{}".format(self.prefix, message))
+            self._write("{}\t{}", self.prefix, message)

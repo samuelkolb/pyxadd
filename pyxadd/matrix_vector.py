@@ -4,6 +4,7 @@ import sympy
 import math
 from collections import defaultdict
 
+from pyxadd import view
 from pyxadd.diagram import Diagram, DefaultCache, Pool
 from pyxadd.operation import Summation, Multiplication
 from pyxadd.test import LinearTest
@@ -35,7 +36,7 @@ class SummationCache(DefaultCache):
             # TODO add caching again
             # TODO Deferred, only numeric / one call => directly
             try:
-                # expression = sympy.expand(expression)
+                expression = sympy.expand(expression)
                 # print("Value at r=10 is {}".format(expression.subs({"r": 10})))
                 result = sympy.Sum(expression, (v, self.lb, self.ub)).doit()
                 # print("Symbolic sum of {} = {}".format(expression, result))
@@ -209,9 +210,15 @@ class SummationWalker(DownUpWalker):
                 import time
                 # result = sympy.nsimplify(sympy.Sum(sympy.nsimplify(expression), (self.variable, lb, ub)).doit())
                 node_id = terminal_node.node_id
+
+                # if isinstance(lb, float) and isinstance(ub, float):
+                #     print("Shortcut")
+                #     result = sympy.Sum(terminal_node.expression, (self.variable, lb, ub)).doit()
+                # else:
                 # hit = pool.is_cached(SummationCache.name, (self.variable, node_id))
                 f = pool.get_cached(SummationCache.name, (self.variable, node_id))
                 result = f(lb, ub)
+                # print(result)
                 if result == sympy.nan:
                     raise RuntimeError("Result is nan: {} for lb={} and ub={}".format(terminal_node.expression, lb, ub))
                 # print("Leaf sum:", ("cached" if hit else "not cached"), (lb, ub), result)
@@ -277,17 +284,27 @@ def sum_out(pool, root, variables, reducer=None, all_variables=None):
     # timer = Timer()
     # timer.start("Summing out")
     # per_var = timer.sub_time()
+    # print(variables)
+
     for var in variables:
         # per_var.start("Summing out {}".format(var))
-        walker = SummationWalker(result, var)
-        result_id = walker.walk()
-        if reducer is not None:
-            result_id = reducer.reduce(result_id, all_variables)
-        result = pool.diagram(result_id)
-        total = sum(walker.revisit.values())
-        from numpy import average
-        avg = average(walker.revisit.values())
-        # print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
+        v_type = pool.get_var_type(var)
+        # print("Eliminate {} var {}".format(v_type, var))
+        # view.export(result, "before_{}.dot".format(var))
+        if v_type == "bool":
+            from pyxadd import rename
+            result = pool.diagram(rename.substitute(result, {var: True}, True))\
+                     + pool.diagram(rename.substitute(result, {var: False}, True))
+        elif v_type == "int":
+            walker = SummationWalker(result, var)
+            result_id = walker.walk()
+            if reducer is not None:
+                result_id = reducer.reduce(result_id, all_variables)
+            result = pool.diagram(result_id)
+            # total = sum(walker.revisit.values())
+            # from numpy import average
+            # avg = average(walker.revisit.values())
+            # print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
     # timer.start("Checking output")
     _check_output(diagram, result, variables)
     # timer.stop()

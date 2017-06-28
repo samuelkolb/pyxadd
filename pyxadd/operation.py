@@ -57,6 +57,7 @@ class Summation(Operation):
         return None
 
 
+# TODO Review logical operations, is terminal correct? Seems to be missing edge cases
 class LogicalOr(Operation):
     def __init__(self):
         Operation.__init__(self, "|")

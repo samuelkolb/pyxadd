@@ -53,6 +53,10 @@ class Operator:
         raise NotImplementedError()
 
     def __invert__(self):
+        """
+        Return the negation of this operator. E.g. ~(x <= 0) = x > 0
+        :return Operator: The negation
+        """
         raise NotImplementedError()
 
     def flip(self):
@@ -85,6 +89,10 @@ class Operator:
         raise NotImplementedError()
 
     def to_canonical(self):
+        """
+        Returns a canonical form of the operator, i.e. rewrites it as a weak inequality (<=)
+        :rtype: Operator
+        """
         raise NotImplementedError()
 
     def invert_lhs(self):
@@ -95,7 +103,7 @@ class Operator:
         rhs = self.rhs * constant
         operator = self if constant >= 0 else self.flip()
         return operator._update(lhs, rhs)
-    
+
     def operator_add(self, other):
         assert isinstance(other, Operator)
         assert self.symbol == other.symbol
@@ -141,7 +149,39 @@ class Operator:
         result = self_scaled.operator_add(other_scaled)
         assert variable not in result.variables
         return result
-   
+
+    def contradicts(self, other):
+        """
+        Checks if this operator and the given operator contradict each other
+        :param Operator other:
+        :return bool: True if the operators contradict each other, False otherwise
+        """
+        op_self = self.to_canonical()
+        op_other = other.to_canonical()
+
+        if len(op_self.lhs) != len(op_other.lhs):
+            return False
+
+        ratio = None
+        delta = 0
+        for v in op_self.lhs:
+            # Check for free variables that only occur in one operator
+            if v not in op_other.lhs:
+                return False
+
+            # Check for a negative ratio
+            v_ratio = op_self.coefficient(v) / float(op_other.coefficient(v))
+            if v_ratio > 0:
+                return False
+
+            # Check that ratio is the same for all vars
+            if ratio is None:
+                ratio = v_ratio
+            elif abs(ratio - v_ratio) > delta:
+                return False
+
+        return 0 <= op_self.rhs + -ratio * op_other.rhs
+
     def __repr__(self):
         return "{} {} {}".format(" + ".join("{}*{}".format(v, k) for k, v in self.lhs.items()), self.symbol, self.rhs)
 
@@ -188,7 +228,9 @@ class Operator:
         expression = lhs - rhs
         lhs = {str(var): float(expression.coeff(var, 1)) for var in expression.free_symbols}
         lhs = {var: coefficient for var, coefficient in lhs.items() if coefficient != 0}
-        rhs = float(-sympy.lambdify(expression.free_symbols, expression)(*([0] * len(expression.free_symbols))))
+        constant = -sympy.lambdify(expression.free_symbols, expression)(*([0] * len(expression.free_symbols)))
+        # print(constant)
+        rhs = float(constant)
         operator = Operator.constructors[symbol](lhs, rhs)
         return operator
 
@@ -361,6 +403,13 @@ class Test(object):
     def to_canonical(self, child_true, child_false):
         raise NotImplementedError()
 
+    def get_valid_branches(self):
+        """
+        Returns the valid branches (True, False or both)
+        :rtype: List[bool]
+        """
+        raise NotImplementedError()
+
     def __repr__(self):
         raise NotImplementedError()
 
@@ -449,6 +498,12 @@ class LinearTest(Test):
             self._operator = self.operator.to_canonical()
             return self, child_true, child_false
 
+    def get_valid_branches(self):
+        if len(self.operator.variables) > 0:
+            return [True, False]
+        # Operator has no variables, is of the form 0 <= k
+        return [0 <= self.operator.rhs]
+
     def __repr__(self):
         return repr(self.operator)
 
@@ -481,6 +536,11 @@ class BinaryTest(Test):
 
     def to_canonical(self, child_true, child_false):
         return self, child_true, child_false
+
+    def get_valid_branches(self):
+        if self.var is True or self.var is False:
+            return [self.var]
+        return [True, False]
 
     def __repr__(self):
         return str(self.var)

@@ -1,6 +1,7 @@
 import re
 import warnings
 
+import graphviz
 import sympy
 
 from pyxadd.operation import Summation, Multiplication, LogicalOr, LogicalAnd
@@ -192,12 +193,18 @@ class Pool:
             raise RuntimeError("No node in pool with id {}.".format(node_id))
 
     def int_var(self, *args):
-        for name in args:
-            self.vars[str(name)] = "int"
+        self._set_var_type("int", args)
 
     def bool_var(self, *args):
-        for name in args:
-            self.vars[str(name)] = "bool"
+        self._set_var_type("bool", args)
+
+    def _set_var_type(self, v_type, variable_names):
+        for name in variable_names:
+            name = str(name)
+            if name in self.vars and self.vars[name] != v_type:
+                raise RuntimeError("Cannot change the type of variable {} from {} to {}"
+                                   .format(name, self.vars[name], v_type))
+            self.vars[name] = v_type
 
     def add_var(self, name, v_type):
         mapping = {
@@ -244,8 +251,14 @@ class Pool:
         # type: (Test, int, int, None|str) -> int
         check_node_id(child_true, "Child (true)")
         check_node_id(child_false, "Child (false)")
+
+        # Collapse ite if both children are the same
         if child_true == child_false:
             return child_true
+
+        # Collapse ite if the test is a tautology
+        if len(test.get_valid_branches()) == 1:
+            return child_true if test.get_valid_branches()[0] else child_false
 
         test, child_true, child_false = test.to_canonical(child_true, child_false)
         test_id = self._add_test(test)
@@ -419,6 +432,8 @@ class Pool:
 
 
 class Diagram:
+    debug = True
+
     def __init__(self, pool, root_node):
         self._pool = pool
         if isinstance(root_node, Node):
@@ -532,7 +547,15 @@ class Diagram:
             raise TypeError("Cannot perform or on diagram with {}".format(type(other)))
         if self.pool != other.pool:
             raise RuntimeError("Can only operate on diagrams from the same pool")
-        return Diagram(self.pool, self.pool.apply(LogicalOr, self.root_node.node_id, other.root_node.node_id))
+        try:
+            new_root_id = self.pool.apply(LogicalOr, self.root_node.node_id, other.root_node.node_id)
+            return Diagram(self.pool, new_root_id)
+        except RuntimeError as e:
+            if self.debug:
+                print("Runtime error occured during logical OR")
+                from pyxadd import view
+                graphviz.Source(view.to_dot(self) + "\n" + view.to_dot(other)).render(view=True)
+            raise
 
     def __and__(self, other):
         if not isinstance(other, Diagram):
