@@ -90,9 +90,12 @@ class XADDParser(object):
             rhs = self.ast_to_expression(node.children[1])
             return self.builder.test(lhs, node.name, rhs)
         elif node.name == "const":
-            return self._get_constant(node)
+            return self.builder.exp(self._get_constant(node))
         elif node.name == "var":
-            self.builder.exp(self._get_var(node)[0])
+            var, v_type = self._get_var(node)
+            if v_type == "bool":
+                return self.builder.test(var)
+            return self.builder.exp(var)
         else:
             raise RuntimeError("Unrecognized node type '{}'".format(node.name))
 
@@ -100,11 +103,11 @@ class XADDParser(object):
         if node.name == "^":
             return "{}^{}".format(self.ast_to_expression(node.children[0]), self.ast_to_expression(node.children[1]))
         elif node.name == "*":
-            return "*".join(self.ast_to_xadd(child) for child in node.children)
+            return "*".join(self.ast_to_expression(child) for child in node.children)
         elif node.name == "+":
-            return "+".join(self.ast_to_xadd(child) for child in node.children)
+            return "+".join(self.ast_to_expression(child) for child in node.children)
         elif node.name == "const":
-            return self._get_constant(node)
+            return str(self._get_constant(node))
         elif node.name == "var":
             var, v_type = self._get_var(node)
             if v_type not in ["int", "real"]:
@@ -121,7 +124,11 @@ class XADDParser(object):
         v_type = node.children[0].name
         value = node.children[1].name
         if v_type == "bool":
-            return bool(value)
+            if value == "1" or value == "true":
+                return 1
+            elif value == "0" or value == "false":
+                return 0
+            raise RuntimeError("Could not parse boolean constant with value '{}'".format(value))
         elif v_type == "int":
             return int(value)
         elif v_type == "real":
