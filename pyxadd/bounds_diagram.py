@@ -75,6 +75,8 @@ class BoundResolve(object):
         # print "ub_lb_resolve node: {}, ub: {}, lb: {}, {} : {}".format(node, ub, lb, hash(str(ub)), hash(str(lb)))
         # leaf
         if node.is_terminal():
+            if self.pool.get_var_type(var) == "bool":
+                return self.pool.terminal(2 * node.expression)
             if ub is None or lb is None:
                 # TODO: to deal with unbounded constraints, we should either return 0 if we've seen bounds
                 # or f(inf) if we haven't seen bounds
@@ -87,6 +89,10 @@ class BoundResolve(object):
                 # print "->", self.pool.get_node(res)
                 return cache_result(res)
                 # not leaf
+
+        if self.pool.get_var_type(var) == "bool":
+            from pyxadd.operation import Summation
+            return self.pool.apply(Summation, node.child_true, node.child_false)
         var_coefficient = node.test.operator.coefficient(var)
         if var_coefficient != 0:
             # Variable occurs in test
