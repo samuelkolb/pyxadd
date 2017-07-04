@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import re
 import warnings
 
@@ -50,6 +52,10 @@ class TerminalNode(Node):
         except KeyError as e:
             raise RuntimeError(("The assignment {a} contains no value for variable {v} [node {n} ]"
                   .format(a=assignment, v=e.args[0], n=self)))
+        except TypeError as e:
+            print("Something went wrong with the evaluation of expression {e} ({s}) for assignment {a}"
+                  .format(e=self.expression, a=assignment, s=self._symbols))
+            raise
 
     def __repr__(self):
         return "T(id: {}, expression: {})".format(self.node_id, self.expression)
@@ -516,6 +522,10 @@ class Diagram:
             raise RuntimeError("Unknown reduction method {} (valid options are 'linear' or 'smt')".format(method))
 
         return Diagram(self.pool, reducer.reduce(self.root_node.node_id, variables))
+
+    def show(self):
+        from pyxadd import view
+        graphviz.Source(view.to_dot(self)).render(view=True)
 
     def __invert__(self):
         return Diagram(self.pool, self.pool.invert(self.root_node.node_id))

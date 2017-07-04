@@ -182,6 +182,11 @@ class Operator:
 
         return 0 <= op_self.rhs + -ratio * op_other.rhs
 
+    def extract_bound(self, var):
+        if var not in self.variables:
+            return None
+
+
     def __repr__(self):
         return "{} {} {}".format(" + ".join("{}*{}".format(v, k) for k, v in self.lhs.items()), self.symbol, self.rhs)
 

@@ -4,7 +4,7 @@ from pyxadd import walk
 
 class VariableFinder(walk.BottomUpWalker):
     def visit_internal(self, internal_node, true_message, false_message):
-        return true_message | false_message | set(internal_node.test.operator.variables)
+        return true_message | false_message | set(internal_node.test.variables)
 
     def visit_terminal(self, terminal_node):
         return set([str(v) for v in terminal_node.expression.free_symbols])
@@ -16,7 +16,7 @@ class TopDownVariableFinder(walk.DepthFirstUniqueWalker):
         self._variables = None
 
     def visit_internal(self, internal_node, parent_message):
-        self._variables |= set(internal_node.test.operator.variables)
+        self._variables |= set(internal_node.test.variables)
         return None, None
 
     def visit_terminal(self, terminal_node, parent_message):

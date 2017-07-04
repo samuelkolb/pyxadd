@@ -97,8 +97,6 @@ class SummationWalker(DownUpWalker):
 
     def visit_internal_down(self, internal_node, parent_message):
         # TODO Can cache if same ubs / lbs are passed to a node again (e.g. integrating out a non-existent variable)
-        operator = internal_node.test.operator.to_canonical()
-        # expression = internal_node.test.expression
 
         # Initialize bounds
         if parent_message is not None:
@@ -106,35 +104,37 @@ class SummationWalker(DownUpWalker):
         else:
             lb, ub, bounds = -float("inf"), float("inf"), ()
 
-        if operator.is_singular() and self.variable in operator.variables:
-            # Test on exactly the given variable: update bounds for the two children (node will be collapsed)
-            lb_t, ub_t = internal_node.test.update_bounds(self.variable, lb, ub, test=True)
-            lb_f, ub_f = internal_node.test.update_bounds(self.variable, lb, ub, test=False)
-            return (lb_t, ub_t, bounds), (lb_f, ub_f, bounds)
+        operator = internal_node.test.operator.to_canonical() if isinstance(internal_node.test, LinearTest) else None
+        # expression = internal_node.test.expression
+        if operator is not None:
+            if operator.is_singular() and self.variable in operator.variables:
+                # Test on exactly the given variable: update bounds for the two children (node will be collapsed)
+                lb_t, ub_t = internal_node.test.update_bounds(self.variable, lb, ub, test=True)
+                lb_f, ub_f = internal_node.test.update_bounds(self.variable, lb, ub, test=False)
+                return (lb_t, ub_t, bounds), (lb_f, ub_f, bounds)
 
-        elif len(operator.variables) > 1 and self.variable in operator.variables:
-            # Test that includes the given variable and others: rewrite and pass both options (node will be collapsed)
-            def to_exp(op):
-                expression = sympy.sympify(op.rhs)
-                for k, v in op.lhs.items():
-                    if k != self.variable:
-                        expression = -sympy.S(k) * v + expression
-                return expression
+            elif len(operator.variables) > 1 and self.variable in operator.variables:
+                # Test that includes the given variable and others: rewrite and pass both options (node will be collapsed)
+                def to_exp(op):
+                    expression = sympy.sympify(op.rhs)
+                    for k, v in op.lhs.items():
+                        if k != self.variable:
+                            expression = -sympy.S(k) * v + expression
+                    return expression
 
-            rewritten_positive = operator.times(1 / operator.coefficient(self.variable)).weak()
-            exp_pos = to_exp(rewritten_positive)
+                rewritten_positive = operator.times(1 / operator.coefficient(self.variable)).weak()
+                exp_pos = to_exp(rewritten_positive)
 
-            rewritten_negative = (~operator).times(1 / operator.coefficient(self.variable)).weak()
-            exp_neg = to_exp(rewritten_negative)
+                rewritten_negative = (~operator).times(1 / operator.coefficient(self.variable)).weak()
+                exp_neg = to_exp(rewritten_negative)
 
-            true_bound = (rewritten_positive.symbol, exp_pos)
-            false_bound = (rewritten_negative.symbol, exp_neg)
-            return (lb, ub, bounds + (true_bound,)), (lb, ub, bounds + (false_bound,))
+                true_bound = (rewritten_positive.symbol, exp_pos)
+                false_bound = (rewritten_negative.symbol, exp_neg)
+                return (lb, ub, bounds + (true_bound,)), (lb, ub, bounds + (false_bound,))
 
-        else:
-            # Test that does not include the given variable (node test will be maintained)
-            self.node_cache[internal_node.node_id] = internal_node.test
-            return (lb, ub, bounds), (lb, ub, bounds)
+        # Test that does not include the given variable (node test will be maintained)
+        self.node_cache[internal_node.node_id] = internal_node.test
+        return (lb, ub, bounds), (lb, ub, bounds)
 
     def visit_internal_aggregate(self, internal_node, true_result, false_result):
         pool = self._diagram.pool
@@ -223,6 +223,9 @@ class SummationWalker(DownUpWalker):
                     raise RuntimeError("Result is nan: {} for lb={} and ub={}".format(terminal_node.expression, lb, ub))
                 # print("Leaf sum:", ("cached" if hit else "not cached"), (lb, ub), result)
                 # TODO: simplify result numerically??
+
+                # print("SUM {} for x from {} to {} = {}".format(terminal_node.expression, lb, ub, result))
+
                 bound_integrity_check = LinearTest(lb, "<=", ub)
                 if bound_integrity_check.operator.is_tautology():
                     return pool.terminal(result) if bound_integrity_check.evaluate({}) else pool.zero_id
