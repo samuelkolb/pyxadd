@@ -40,7 +40,10 @@ class BoundResolve(object):
             assert isinstance(terminal_node, diagram.TerminalNode)
             return d.pool.terminal(sympy.Sum(terminal_node.expression, (var, "_lb", "_ub")).doit())
 
-        integrated = leaf_transform.transform_leaves(symbolic_integrator, self.pool.diagram(node_id))
+        if self.pool.get_var_type(var) != "bool":
+            integrated = leaf_transform.transform_leaves(symbolic_integrator, self.pool.diagram(node_id))
+        else:
+            integrated = node_id
         self.export(self.pool.diagram(integrated), "integrated")
         self.resolve_cache = dict()
         result_id = self.resolve_lb_ub(integrated, var)
@@ -83,7 +86,20 @@ class BoundResolve(object):
                 return cache_result(self.pool.zero_id)
             else:
                 ub_sub = self.operator_to_bound(ub, var)
+                try:  # TODO Check rounding
+                    ub_sub = int(ub_sub)
+                except TypeError:
+                    print("Could not convert ub {} to int".format(ub_sub))
+                    raise
+
                 lb_sub = self.operator_to_bound(lb, var)
+                try:
+                    lb_sub = int(lb_sub)  # TODO ROUND UP NOT DOWN
+                except TypeError:
+                    print("Could not convert lb {} to int".format(lb_sub))
+                    raise
+                # assert len(ub_sub.free_symbols) > 0 or ub_sub == int(ub_sub), "ub is float: {}".format(ub_sub)
+                # assert len(lb_sub.free_symbols) > 0 or lb_sub == int(lb_sub), "lb is float: {}".format(lb_sub)
                 bounded_exp = node.expression.subs({"_ub": ub_sub, "_lb": lb_sub})
                 res = self.pool.terminal(bounded_exp)
                 # print "->", self.pool.get_node(res)
