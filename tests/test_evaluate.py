@@ -8,17 +8,23 @@ from pyxadd.evaluate import mass_evaluate
 from pyxadd.timer import Timer
 
 
+def get_diagram_1():
+    pool_file = "data/test_evaluate_1.txt"
+    root_id = 1663
+
+    with open(pool_file, "r") as stream:
+        json_input = stream.readline()
+
+    exported_pool = Pool.from_json(json_input)
+    diagram1 = exported_pool.diagram(root_id)
+    vars1 = [('r_f0', 0, 1658), ('r_f1', 0, 964), ('c_f0', 0, 1658), ('c_f1', 0, 964)]
+    return diagram1, vars1
+
+
 class TestDiagram(unittest.TestCase):
+
     def setUp(self):
-        pool_file = "data/test_evaluate_1.txt"
-        root_id = 1663
-
-        with open(pool_file, "r") as stream:
-            json_input = stream.readline()
-
-        exported_pool = Pool.from_json(json_input)
-        self.diagram1 = exported_pool.diagram(root_id)
-        self.vars1 = [('r_f0', 0, 1658), ('r_f1', 0, 964), ('c_f0', 0, 1658), ('c_f1', 0, 964)]
+        self.diagram1, self.vars1 = get_diagram_1()
 
     def test_numeric(self):
         entries = []

@@ -103,7 +103,7 @@ class Operator:
         rhs = self.rhs * constant
         operator = self if constant >= 0 else self.flip()
         return operator._update(lhs, rhs)
-    
+
     def operator_add(self, other):
         assert isinstance(other, Operator)
         assert self.symbol == other.symbol

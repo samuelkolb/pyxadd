@@ -2,7 +2,7 @@ from pyxadd.diagram import InternalNode, TerminalNode
 from pyxadd.walk import WalkingProfile, ParentsWalker
 
 
-def to_dot(diagram):
+def to_dot(diagram, print_node_ids=False):
     layers = WalkingProfile.extract_layers(diagram, ParentsWalker(diagram).walk())
     string = "digraph G {\n"
     string += "\trankdir = TB;\n"
@@ -10,10 +10,10 @@ def to_dot(diagram):
         for node_id in layers[i]:
             node = diagram.node(node_id)
             if isinstance(node, InternalNode):
-                label = node.test
+                label = node.test if not print_node_ids else "{}: {}".format(node_id, node.test)
                 shape = ""
             elif isinstance(node, TerminalNode):
-                label = node.expression
+                label = node.expression if not print_node_ids else "{}: {}".format(node_id, node.expression)
                 shape = "box"
             else:
                 raise RuntimeError("Unexpected node type: {}".format(type(node)))
@@ -26,6 +26,6 @@ def to_dot(diagram):
     return string
 
 
-def export(diagram, filename):
+def export(diagram, filename, print_node_ids=False):
     with open(filename, "w") as file:
-        file.write(to_dot(diagram))
+        file.write(to_dot(diagram, print_node_ids=print_node_ids))
