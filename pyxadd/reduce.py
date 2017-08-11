@@ -13,6 +13,7 @@ Reducers can exploit the fact that they do not change the relative ordering of t
 Therefore, they can work "in place" and do not need to recontruct the diagram using multiplication and summation.
 """
 
+
 class Reducer(object):
     def __init__(self, pool):
         self._pool = pool
@@ -106,7 +107,7 @@ class LinearReduction(Reducer):
             raise e
 
 
-class SmtReduce(Reducer):
+class OldSmtReduce(Reducer):
     def __init__(self, pool):
         Reducer.__init__(self, pool)
         self.variables = None
@@ -133,21 +134,21 @@ class SmtReduce(Reducer):
 
             def reduce_branch(true):
                 solver.push()
-                solver.add_assertion(smt_test_true if true else smt.Not(smt_test_false))
+                solver.add_assertion(smt_test_true if true else smt_test_false)
                 child_node = self.pool.get_node(node.child_true if true else node.child_false)
                 reduced_node = self._reduce(child_node, solver)
                 solver.pop()
                 return reduced_node
 
             if not solver.solve([smt_test_true]):
-                # print(smt_test, "not possible, pursue false branch")
+                # Test not feasible, pursue false branch
                 return reduce_branch(False)
 
             if not solver.solve([smt_test_false]):
-                # print("not", smt.Not(smt_test), "not possible, pursue true branch")
+                # Test negation not feasible, pursue true branch
                 return reduce_branch(True)
 
-            # print(smt_test, "possible, pursue both branches")
+            # Test possible in both ways, pursue both branches
             node_id = self.pool.internal(node.test, reduce_branch(True).node_id, reduce_branch(False).node_id)
             return self.pool.get_node(node_id)
         else:
@@ -259,3 +260,98 @@ class SimpleBoundReducer(Reducer):
 
         else:
             raise RuntimeError("Unexpected node {} of type {}".format(node, type(node)))
+
+
+class SmtReduce(Reducer):
+    def __init__(self, pool, fast=False):
+        Reducer.__init__(self, pool)
+        self.variables = None
+        self.consistent = None
+        self.fast = fast
+        self.operator_dict = dict()
+
+    @property
+    def columns(self):
+        return len(self.variables)
+
+    def reduce(self, node_id, variables=None, fast=None):
+        fast = self.fast if fast is None else fast
+        if variables is None:
+            variables = self._get_variables(node_id)
+        self.variables = variables
+        if fast:
+            self.consistent = set()
+        with smt.Solver() as solver:
+            result_id = self._reduce(self.pool.get_node(node_id), solver, fast).node_id
+            if fast:
+                self.consistent = None
+            return result_id
+
+    def _reduce(self, node, solver, fast):
+        if isinstance(node, TerminalNode):
+            # Reached end of the path, path is consistent
+            return node
+        elif isinstance(node, InternalNode):
+            if fast and node.node_id in self.consistent:
+                return node
+
+            smt_test_true, smt_test_false = (self._test_to_smt(op) for op in (node.test.operator, ~node.test.operator))
+
+            def reduce_branch(true):
+                solver.push()
+                solver.add_assertion(smt_test_true if true else smt_test_false)
+                child_node = self.pool.get_node(node.child_true if true else node.child_false)
+                reduced_node = self._reduce(child_node, solver, fast)
+                solver.pop()
+                return reduced_node
+
+            def solve(test):
+                return solver.solve([test])
+
+            if not solve(smt_test_true):
+                # Test not feasible, pursue false branch
+                result_node = reduce_branch(False)
+            elif not solve(smt_test_false):
+                # Test negation not feasible, pursue true branch
+                result_node = reduce_branch(True)
+            else:
+                # Test possible in both ways, pursue both branches
+                node_id = self.pool.internal(node.test, reduce_branch(True).node_id, reduce_branch(False).node_id)
+                result_node = self.pool.get_node(node_id)
+            if fast:
+                self.consistent.add(result_node.node_id)
+            return result_node
+        else:
+            raise RuntimeError("Unknown node {} of type {}".format(node, type(node)))
+
+    def _test_to_smt(self, operator):
+        operator = operator.to_canonical()
+
+        # FIXME Integer rounding only applicable if x >= 0
+
+        def to_symbol(s):
+            return smt.Symbol(s, typename=smt.types.INT)
+
+        import math
+        items = [smt.Times(smt.Int(int(math.floor(v))), to_symbol(k)) for k, v in operator.lhs.items()]
+        lhs = smt.Plus([smt.Int(0)] + items)
+        rhs = smt.Int(int(math.floor(operator.rhs)))
+
+        assert operator.symbol == "<="
+
+        return smt.LE(lhs, rhs)
+
+    def _exp_to_smt(self, expression):
+        if isinstance(expression, sympy.Add):
+            return smt.Plus([self._exp_to_smt(arg) for arg in expression.args])
+        elif isinstance(expression, sympy.Mul):
+            return smt.Times(*[self._exp_to_smt(arg) for arg in expression.args])
+        elif isinstance(expression, sympy.Symbol):
+            return smt.Symbol(str(expression), INT)
+
+        try:
+            expression = int(expression)
+            return smt.Int(expression)
+        except ValueError:
+            pass
+        raise RuntimeError("Could not parse {} of type {}".format(expression, type(expression)))

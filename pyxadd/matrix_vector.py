@@ -1,8 +1,10 @@
 from __future__ import print_function
 
 import sympy
+import math
 from collections import defaultdict
 
+from pyxadd import view
 from pyxadd.diagram import Diagram, DefaultCache, Pool
 from pyxadd.operation import Summation, Multiplication
 from pyxadd.test import LinearTest
@@ -32,8 +34,9 @@ class SummationCache(DefaultCache):
 
             v = variables[variable] if variable in variables else sympy.S(variable)
             # TODO add caching again
+            # TODO Deferred, only numeric / one call => directly
             try:
-                # expression = sympy.expand(expression)
+                expression = sympy.expand(expression)
                 # print("Value at r=10 is {}".format(expression.subs({"r": 10})))
                 result = sympy.Sum(expression, (v, self.lb, self.ub)).doit()
                 # print("Symbolic sum of {} = {}".format(expression, result))
@@ -82,54 +85,56 @@ def filter_bounds(bounds, lower):
 
 class SummationWalker(DownUpWalker):
     def __init__(self, diagram, variable):
-        DownUpWalker.__init__(self, diagram)
+        DownUpWalker.__init__(self, diagram, cache_messages=True)
         self.variable = str(variable)
         # The node cache keeps track of the updated bounds per test
         self.node_cache = dict()
         self.sum_cache = dict()
+        self.recursion_cache = dict()
         SummationCache.initialize(diagram.pool)
         self.conflicts = set()
         self.revisit = defaultdict(lambda: 0)
 
     def visit_internal_down(self, internal_node, parent_message):
-        operator = internal_node.test.operator.to_canonical()
-        # expression = internal_node.test.expression
+        # TODO Can cache if same ubs / lbs are passed to a node again (e.g. integrating out a non-existent variable)
 
         # Initialize bounds
         if parent_message is not None:
             lb, ub, bounds = parent_message
         else:
-            lb, ub, bounds = -float("inf"), float("inf"), []
+            lb, ub, bounds = -float("inf"), float("inf"), ()
 
-        if operator.is_singular() and self.variable in operator.variables:
-            # Test on exactly the given variable: update bounds for the two children (node will be collapsed)
-            lb_t, ub_t = internal_node.test.update_bounds(self.variable, lb, ub, test=True)
-            lb_f, ub_f = internal_node.test.update_bounds(self.variable, lb, ub, test=False)
-            return (lb_t, ub_t, bounds), (lb_f, ub_f, bounds)
+        operator = internal_node.test.operator.to_canonical() if isinstance(internal_node.test, LinearTest) else None
+        # expression = internal_node.test.expression
+        if operator is not None:
+            if operator.is_singular() and self.variable in operator.variables:
+                # Test on exactly the given variable: update bounds for the two children (node will be collapsed)
+                lb_t, ub_t = internal_node.test.update_bounds(self.variable, lb, ub, test=True)
+                lb_f, ub_f = internal_node.test.update_bounds(self.variable, lb, ub, test=False)
+                return (lb_t, ub_t, bounds), (lb_f, ub_f, bounds)
 
-        elif len(operator.variables) > 1 and self.variable in operator.variables:
-            # Test that includes the given variable and others: rewrite and pass both options (node will be collapsed)
-            def to_exp(op):
-                expression = sympy.sympify(op.rhs)
-                for k, v in op.lhs.items():
-                    if k != self.variable:
-                        expression = -sympy.S(k) * v + expression
-                return expression
+            elif len(operator.variables) > 1 and self.variable in operator.variables:
+                # Test that includes the given variable and others: rewrite and pass both options (node will be collapsed)
+                def to_exp(op):
+                    expression = sympy.sympify(op.rhs)
+                    for k, v in op.lhs.items():
+                        if k != self.variable:
+                            expression = -sympy.S(k) * v + expression
+                    return expression
 
-            rewritten_positive = operator.times(1 / operator.coefficient(self.variable)).weak()
-            exp_pos = to_exp(rewritten_positive)
+                rewritten_positive = operator.times(1 / operator.coefficient(self.variable)).weak()
+                exp_pos = to_exp(rewritten_positive)
 
-            rewritten_negative = (~operator).times(1 / operator.coefficient(self.variable)).weak()
-            exp_neg = to_exp(rewritten_negative)
+                rewritten_negative = (~operator).times(1 / operator.coefficient(self.variable)).weak()
+                exp_neg = to_exp(rewritten_negative)
 
-            true_bound = (rewritten_positive.symbol, exp_pos)
-            false_bound = (rewritten_negative.symbol, exp_neg)
-            return (lb, ub, bounds + [true_bound]), (lb, ub, bounds + [false_bound])
+                true_bound = (rewritten_positive.symbol, exp_pos)
+                false_bound = (rewritten_negative.symbol, exp_neg)
+                return (lb, ub, bounds + (true_bound,)), (lb, ub, bounds + (false_bound,))
 
-        else:
-            # Test that does not include the given variable (node test will be maintained)
-            self.node_cache[internal_node.node_id] = internal_node.test
-            return (lb, ub, bounds), (lb, ub, bounds)
+        # Test that does not include the given variable (node test will be maintained)
+        self.node_cache[internal_node.node_id] = internal_node.test
+        return (lb, ub, bounds), (lb, ub, bounds)
 
     def visit_internal_aggregate(self, internal_node, true_result, false_result):
         pool = self._diagram.pool
@@ -175,8 +180,10 @@ class SummationWalker(DownUpWalker):
         lower_bounds = filter_bounds(lower_bounds, lower=True)
         upper_bounds = filter_bounds(upper_bounds, lower=False)
 
-        lower_bounds.append(lb_natural)
-        upper_bounds.append(ub_natural)
+        if len(lower_bounds) == 0 or not (math.isinf(lb_natural) and lb_natural < 0):
+            lower_bounds.append(lb_natural)
+        if len(upper_bounds) == 0 or not (math.isinf(ub_natural) and ub_natural > 0):
+            upper_bounds.append(ub_natural)
 
         # print("Lower bounds: {}".format(lower_bounds))
         # print("Upper bounds: {}".format(upper_bounds))
@@ -203,13 +210,22 @@ class SummationWalker(DownUpWalker):
                 import time
                 # result = sympy.nsimplify(sympy.Sum(sympy.nsimplify(expression), (self.variable, lb, ub)).doit())
                 node_id = terminal_node.node_id
+
+                # if isinstance(lb, float) and isinstance(ub, float):
+                #     print("Shortcut")
+                #     result = sympy.Sum(terminal_node.expression, (self.variable, lb, ub)).doit()
+                # else:
                 # hit = pool.is_cached(SummationCache.name, (self.variable, node_id))
                 f = pool.get_cached(SummationCache.name, (self.variable, node_id))
                 result = f(lb, ub)
+                # print(result)
                 if result == sympy.nan:
                     raise RuntimeError("Result is nan: {} for lb={} and ub={}".format(terminal_node.expression, lb, ub))
                 # print("Leaf sum:", ("cached" if hit else "not cached"), (lb, ub), result)
                 # TODO: simplify result numerically??
+
+                # print("SUM {} for x from {} to {} = {}".format(terminal_node.expression, lb, ub, result))
+
                 bound_integrity_check = LinearTest(lb, "<=", ub)
                 if bound_integrity_check.operator.is_tautology():
                     return pool.terminal(result) if bound_integrity_check.evaluate({}) else pool.zero_id
@@ -271,17 +287,27 @@ def sum_out(pool, root, variables, reducer=None, all_variables=None):
     # timer = Timer()
     # timer.start("Summing out")
     # per_var = timer.sub_time()
+    # print(variables)
+
     for var in variables:
         # per_var.start("Summing out {}".format(var))
-        walker = SummationWalker(result, var)
-        result_id = walker.walk()
-        if reducer is not None:
-            result_id = reducer.reduce(result_id, all_variables)
-        result = pool.diagram(result_id)
-        total = sum(walker.revisit.values())
-        from numpy import average
-        avg = average(walker.revisit.values())
-        # print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
+        v_type = pool.get_var_type(var)
+        # print("Eliminate {} var {}".format(v_type, var))
+        # view.export(result, "before_{}.dot".format(var))
+        if v_type == "bool":
+            from pyxadd import rename
+            result = pool.diagram(rename.substitute(result, {var: True}, True))\
+                     + pool.diagram(rename.substitute(result, {var: False}, True))
+        elif v_type == "int":
+            walker = SummationWalker(result, var)
+            result_id = walker.walk()
+            if reducer is not None:
+                result_id = reducer.reduce(result_id, all_variables)
+            result = pool.diagram(result_id)
+            # total = sum(walker.revisit.values())
+            # from numpy import average
+            # avg = average(walker.revisit.values())
+            # print("Visits to {} nodes, total visits: {}, average: {}".format(len(walker.revisit), total, avg))
     # timer.start("Checking output")
     _check_output(diagram, result, variables)
     # timer.stop()

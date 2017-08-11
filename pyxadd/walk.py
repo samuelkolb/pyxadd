@@ -89,6 +89,11 @@ class DepthFirstUniqueWalker(DepthFirstWalker):
 
 
 class DownUpWalker(Walker):
+    def __init__(self, diagram, cache_messages=False):
+        Walker.__init__(self, diagram)
+        self.cache_messages = cache_messages
+        self.message_cache = None
+
     def visit_terminal(self, terminal_node, parent_message):
         """
         Visit a terminal node.
@@ -118,16 +123,29 @@ class DownUpWalker(Walker):
         raise NotImplementedError()
 
     def walk(self):
-        return self._visit(self._diagram.root_node)
+        if self.cache_messages:
+            self.message_cache = dict()
+        result = self._visit(self._diagram.root_node)
+        self.message_cache = None
+        return result
 
     def _visit(self, node, message=None):
+        def cache_result(result):
+            if self.cache_messages:
+                self.message_cache[(node, message)] = result
+            return result
+
+        if self.cache_messages:
+            if (node, message) in self.message_cache:
+                return self.message_cache[(node, message)]
+
         if isinstance(node, TerminalNode):
-            return self.visit_terminal(node, message)
+            return cache_result(self.visit_terminal(node, message))
         elif isinstance(node, InternalNode):
             true_message, false_message = self.visit_internal_down(node, message)
             true_result = self._visit(self._diagram.node(node.child_true), true_message)
             false_result = self._visit(self._diagram.node(node.child_false), false_message)
-            return self.visit_internal_aggregate(node, true_result, false_result)
+            return cache_result(self.visit_internal_aggregate(node, true_result, false_result))
         else:
             raise RuntimeError("Unexpected node type {}.".format(type(node)))
 
@@ -389,7 +407,7 @@ def profile_exists(root, pool=None):
 def walk_leaves(f, root, pool=None):
     """
     Calls the given function f on all leaf nodes of the given diagram
-    :param f: The function to run on leaf nodes
+    :param f: The function to run on leaf nodes [(pool, node) -> None]
     :param Diagram|int root: The diagram or root node id
     :param Pool|None pool: If the root is an integer, a pool needs to be provided
     """

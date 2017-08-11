@@ -217,7 +217,8 @@ def print_ascii(diagram, column_variables, row_variables):
     for row in get_rows([diagram], column_variables, row_variables):
         print(*["{: 4.0f}".format(v) for v in row], sep="")
 
-
+draw("object", full_object * b.terminal(255), column_variables, row_variables)
+print("Drew object")
 draw("combined", combined, column_variables, row_variables)
 print("Drew combined")
 draw("grid", grid * full, column_variables, row_variables)

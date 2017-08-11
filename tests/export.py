@@ -17,3 +17,5 @@ class Exporter(object):
             export(diagram, os.path.join(self.path(), name + ".dot"))
         elif isinstance(diagram, Matrix):
             diagram.export(os.path.join(self.path(), name))
+        else:
+            raise RuntimeError("Could not export {} of type {}".format(diagram, type(diagram)))
