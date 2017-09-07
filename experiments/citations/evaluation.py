@@ -22,11 +22,9 @@ class KendallTau(EvaluationMeasure):
         :type values1: Tuple[str, list]
         :type values2: Tuple[str, list]
         """
-        name1, values1 = values1
-        name2, values2 = values2
-        timer.start("Calculating kendall tau correlation coefficient ({}-{})".format(name1, name2))
+        timer.start("Calculating kendall tau correlation coefficient")
         tau, _ = stats.kendalltau(values1, values2)
-        timer.log("KT = {} ({}-{})".format(tau, name1, name2))
+        timer.log("KT = {}".format(tau))
         timer.stop()
         return tau
 
@@ -42,9 +40,7 @@ class TopInclusion(EvaluationMeasure):
         :type values1: Tuple[str, list]
         :type values2: Tuple[str, list]
         """
-        name1, values1 = values1
-        name2, values2 = values2
-        timer.start("Find top {} values ({}-{})".format(self.top_count, name1, name2))
+        timer.start("Find top {} values".format(self.top_count))
         set1 = set(heapq.nlargest(self.top_count, range(len(values1)), key=lambda i: values1[i]))
         set2 = set(heapq.nlargest(self.top_count, range(len(values2)), key=lambda i: values2[i]))
         intersection = set1 & set2
@@ -52,7 +48,7 @@ class TopInclusion(EvaluationMeasure):
         timer.log(str(set2))
         timer.log(str(intersection))
         similarity = float(len(intersection)) / self.top_count
-        timer.log("Top inclusion = {} ({}-{})".format(similarity, name1, name2))
+        timer.log("Top inclusion = {}".format(similarity))
         timer.stop()
         return similarity
 
@@ -68,12 +64,10 @@ class TopKT(EvaluationMeasure):
         :type values1: Tuple[str, list]
         :type values2: Tuple[str, list]
         """
-        name1, values1 = values1
-        name2, values2 = values2
-        timer.start("Find top {} values ({}-{})".format(self.top_count, name1, name2))
+        timer.start("Find top {} values".format(self.top_count))
         top1 = list(heapq.nlargest(self.top_count, values1))
         top2 = list(heapq.nlargest(self.top_count, values2))
         tau, _ = stats.kendalltau(top1, top2)
-        timer.log("Top KT = {} ({}-{})".format(tau, name1, name2))
+        timer.log("Top KT = {}".format(tau))
         timer.stop()
         return tau

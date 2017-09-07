@@ -1,5 +1,7 @@
 import re
 
+import sympy
+
 from pyxadd.test import Test, LinearTest
 
 
@@ -20,12 +22,18 @@ def tokenize(chars):
     return chars.replace('(', ' ( ').replace(')', ' ) ').split()
 
 
+tree_pattern = r"output\((.*)\)"
+
+
 def file_to_tokens(filename):
     trees = []
     with open(filename) as stream:
         for line in stream:
             if line is not "":
                 tree_string = line
+                match = re.match(tree_pattern, line)
+                if match is not None:
+                    tree_string = match.group(1)
                 tree_string = re.sub(r"\(\(", "((feature, ", tree_string)
                 tree_string = re.sub(r"(tree|class)\(", r"(\g<1>, ", tree_string)
                 tree_string = re.sub(r"\s+", "", tree_string)
@@ -86,7 +94,8 @@ def ast_to_xadd(pool, root_node):
         return pool.internal(test, child_true, child_false)
     elif root_node.name == "feature":
         # Construct test
-        name = root_node.children[0].name
+        name = sympy.S(root_node.children[0].name)
+        pool.add_var(str(name), "int")
         value = int(float(root_node.children[1].name))
         return LinearTest(name, "<=", value)
     elif root_node.name == "class":
