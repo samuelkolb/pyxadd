@@ -48,6 +48,11 @@ class Timer(object):
             return time_taken
         return None
 
+    def read(self):
+        if self.start_time is not None:
+            return time.time() - self.start_time
+        return None
+
     def sub_time(self):
         """
         :rtype: Timer|None
