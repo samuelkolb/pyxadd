@@ -17,6 +17,7 @@ from pyxadd.diagram import Pool
 from pyxadd.matrix.matrix import Matrix
 from tests.export import Exporter
 
+
 def build_block_diagram():
     pool = Pool()
     build = Builder(pool)
@@ -61,14 +62,14 @@ def learn_decision_tree(examples, labels, options=None):
     return clf
 
 
-def decision_tree_to_xadd(classifier, variables, discrete=True):
+def decision_tree_to_xadd(pool, classifier, variables, discrete=True):
     children_left = classifier.tree_.children_left
     children_right = classifier.tree_.children_right
     feature = classifier.tree_.feature
     threshold = classifier.tree_.threshold
     value = classifier.tree_.value
 
-    build = Builder()
+    build = Builder(pool)
     for t in variables:
         build.ints(str(t[0]))
     diagram = build.exp(0)
