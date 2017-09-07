@@ -273,7 +273,7 @@ class Pool:
         for var in test.variables:
             if str(var) not in self.vars:
                 if v_type is None:
-                    raise RuntimeError("Variable {} not declared".format(var))
+                    raise RuntimeError("Variable {} not declared, only: {} (pool: {})".format(var, self.vars, self))
                 else:
                     self.add_var(var, v_type)
         if node_id is None:
