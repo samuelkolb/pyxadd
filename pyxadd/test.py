@@ -208,9 +208,18 @@ class Operator:
                 c = int(c)
             return str(c)
 
-        coefficients = " + ".join(print_coefficient(c, v) for v, c in self.lhs.items())
-        constant = print_constant(self.rhs)
-        return "{} {} {}".format(coefficients, self.symbol, constant)
+        left_terms = [print_coefficient(c, v) for v, c in self.lhs.items() if c > 0]
+
+        if len(left_terms) == 0 and len(self.variables) > 0:
+            return str(self.flip())
+        elif len(left_terms) == 0:
+            left_terms.append("0")
+
+        right_terms = [print_coefficient(-c, v) for v, c in self.lhs.items() if c < 0]
+        if len(right_terms) == 0 or self.rhs != 0:
+            right_terms.append(print_constant(self.rhs))
+
+        return "{} {} {}".format(" + ".join(left_terms), self.symbol, " + ".join(right_terms))
 
     def __hash__(self):
         if self._hash_code is None:
@@ -511,6 +520,9 @@ class LinearTest(Test):
 
     def __repr__(self):
         return repr(self.operator)
+
+    def __str__(self):
+        return str(self.operator)
 
     def __hash__(self):
         return hash(self.operator)

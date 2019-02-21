@@ -53,16 +53,21 @@ class LinearReduction(Reducer):
 
             return node_id
         elif isinstance(node, InternalNode):
-            true_coefficients, true_constants = self._combine(coefficients, constants, node.test, True)
-            if not self._is_feasible(true_coefficients, true_constants):
-                # Only false branch is true
-                return self._reduce(node.child_false, coefficients, constants)
+            if isinstance(node.test, LinearTest):
+                true_coefficients, true_constants = self._combine(coefficients, constants, node.test, True)
+                if not self._is_feasible(true_coefficients, true_constants):
+                    # Only false branch is true
+                    return self._reduce(node.child_false, coefficients, constants)
 
-            false_coefficients, false_constants = self._combine(coefficients, constants, node.test, False)
-            if not self._is_feasible(false_coefficients, false_constants):
-                # Only true branch is true
-                return self._reduce(node.child_true, coefficients, constants)
-
+                false_coefficients, false_constants = self._combine(coefficients, constants, node.test, False)
+                if not self._is_feasible(false_coefficients, false_constants):
+                    # Only true branch is true
+                    return self._reduce(node.child_true, coefficients, constants)
+            else:
+                true_coefficients = coefficients
+                true_constants = constants
+                false_coefficients = coefficients
+                false_constants = constants
             true_reduced = self._reduce(node.child_true, true_coefficients, true_constants)
             false_reduced = self._reduce(node.child_false, false_coefficients, false_constants)
             return self.pool.internal(node.test, true_reduced, false_reduced)
@@ -256,7 +261,9 @@ class SimpleBoundReducer(Reducer):
                 # Non linear or multiple variable test
                 if not self._ignore_multiple_variables and isinstance(test, LinearTest):
                     raise RuntimeError("Multiple variables not allowed ({})".format(test))
-                return self.pool.internal(node.test, bounds, bounds)
+                return self.pool.internal(node.test,
+                                          self._reduce(node.child_true, bounds),
+                                          self._reduce(node.child_false, bounds))
 
         else:
             raise RuntimeError("Unexpected node {} of type {}".format(node, type(node)))
@@ -295,29 +302,36 @@ class SmtReduce(Reducer):
             if fast and node.node_id in self.consistent:
                 return node
 
-            smt_test_true, smt_test_false = (self._test_to_smt(op) for op in (node.test.operator, ~node.test.operator))
+            pool = self.pool
+            if isinstance(node.test, LinearTest):
+                smt_test_true, smt_test_false = (self._test_to_smt(op) for op in (node.test.operator, ~node.test.operator))
 
-            def reduce_branch(true):
-                solver.push()
-                solver.add_assertion(smt_test_true if true else smt_test_false)
-                child_node = self.pool.get_node(node.child_true if true else node.child_false)
-                reduced_node = self._reduce(child_node, solver, fast)
-                solver.pop()
-                return reduced_node
+                def reduce_branch(true):
+                    solver.push()
+                    solver.add_assertion(smt_test_true if true else smt_test_false)
+                    child_node = pool.get_node(node.child_true if true else node.child_false)
+                    reduced_node = self._reduce(child_node, solver, fast)
+                    solver.pop()
+                    return reduced_node
 
-            def solve(test):
-                return solver.solve([test])
+                def solve(test):
+                    return solver.solve([test])
 
-            if not solve(smt_test_true):
-                # Test not feasible, pursue false branch
-                result_node = reduce_branch(False)
-            elif not solve(smt_test_false):
-                # Test negation not feasible, pursue true branch
-                result_node = reduce_branch(True)
+                if not solve(smt_test_true):
+                    # Test not feasible, pursue false branch
+                    result_node = reduce_branch(False)
+                elif not solve(smt_test_false):
+                    # Test negation not feasible, pursue true branch
+                    result_node = reduce_branch(True)
+                else:
+                    # Test possible in both ways, pursue both branches
+                    node_id = pool.internal(node.test, reduce_branch(True).node_id, reduce_branch(False).node_id)
+                    result_node = pool.get_node(node_id)
             else:
-                # Test possible in both ways, pursue both branches
-                node_id = self.pool.internal(node.test, reduce_branch(True).node_id, reduce_branch(False).node_id)
-                result_node = self.pool.get_node(node_id)
+                result_node = pool.get_node(pool.internal(node.test,
+                                            self._reduce(pool.get_node(node.child_true), solver, fast).node_id,
+                                            self._reduce(pool.get_node(node.child_false), solver, fast).node_id))
+
             if fast:
                 self.consistent.add(result_node.node_id)
             return result_node

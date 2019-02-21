@@ -518,14 +518,24 @@ class Diagram:
         elif method == "fast_smt":
             from pyxadd.reduce import SmtReduce
             reducer = SmtReduce(self.pool, fast=True)
+        elif method == "simple":
+            from pyxadd.reduce import SimpleBoundReducer
+            reducer = SimpleBoundReducer(self.pool)
         else:
-            raise RuntimeError("Unknown reduction method {} (valid options are 'linear' or 'smt')".format(method))
+            options = "'no_reduce', 'linear', 'smt', 'fast_smt' or 'simple'"
+            raise RuntimeError("Unknown reduction method {} (valid options are {})".format(method, options))
 
         return Diagram(self.pool, reducer.reduce(self.root_node.node_id, variables))
 
     def show(self):
         from pyxadd import view
         graphviz.Source(view.to_dot(self)).render(view=True)
+
+    def export(self, output_path, pretty=None):
+        from pyxadd import view
+        if not output_path[-4:] == ".dot":
+            output_path += ".dot"
+        view.export(self, output_path, pretty)
 
     def __invert__(self):
         return Diagram(self.pool, self.pool.invert(self.root_node.node_id))

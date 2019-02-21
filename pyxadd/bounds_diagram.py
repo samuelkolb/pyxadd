@@ -56,7 +56,7 @@ class BoundResolve(object):
         return result_id
 
     def resolve_lb_ub(self, node_id, var, ub=None, lb=None, rl=0):
-        method = "no_reduce"  # "fast_smt"
+        method = "smt"  # "fast_smt"
         prefix = rl * "." + "({})({})({})".format(node_id, ub, lb)
         # print(prefix + " enter")
         if self.cache_result:
@@ -86,18 +86,18 @@ class BoundResolve(object):
                 return cache_result(self.pool.zero_id)
             else:
                 ub_sub = self.operator_to_bound(ub, var)
-                try:  # TODO Check rounding
-                    ub_sub = int(ub_sub)
-                except TypeError:
-                    print("Could not convert ub {} to int".format(ub_sub))
-                    raise
+                # try:  # TODO Check rounding
+                #     ub_sub = int(ub_sub)
+                # except TypeError:
+                #     print("Could not convert ub {} to int".format(ub_sub))
+                #     raise
 
                 lb_sub = self.operator_to_bound(lb, var)
-                try:
-                    lb_sub = int(lb_sub)  # TODO ROUND UP NOT DOWN
-                except TypeError:
-                    print("Could not convert lb {} to int".format(lb_sub))
-                    raise
+                # try:
+                #     lb_sub = int(lb_sub)  # TODO ROUND UP NOT DOWN
+                # except TypeError:
+                #     print("Could not convert lb {} to int".format(lb_sub))
+                #     raise
                 # assert len(ub_sub.free_symbols) > 0 or ub_sub == int(ub_sub), "ub is float: {}".format(ub_sub)
                 # assert len(lb_sub.free_symbols) > 0 or lb_sub == int(lb_sub), "lb is float: {}".format(lb_sub)
                 bounded_exp = node.expression.subs({"_ub": ub_sub, "_lb": lb_sub})
